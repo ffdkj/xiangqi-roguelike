@@ -2,3 +2,5 @@ node_modules/
 .npm-cache/
 tests/_combined.cjs
 *.log
+.gh-cli/
+.gh-config/
