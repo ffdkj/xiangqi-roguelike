@@ -368,6 +368,22 @@ console.log('== 规则单测 ==');
   assert(battle.extraMoves.red === 2, '吕布无双再动2次');
 }
 {
+  /* 吃子再动上限按品质分级: r1/r2=1, r3=2, r4=3 */
+  function eatTwice(defId, tCols, n) {
+    const b = newBoard();
+    const p = makePiece(defId, RED); placeAt(b, 7, 4, p);
+    tCols.forEach((c, i) => placeAt(b, 7, c, makePiece('s_bing', BLACK)));
+    const battle = mkBattle(b);
+    const m1 = genLegalMoves(b, p, { battle }).find(x => x.cap);
+    applyMove(b, p, m1, battle);
+    const m2 = genLegalMoves(b, p, { battle }).find(x => x.cap);
+    if (m2) applyMove(b, p, m2, battle);
+    assert(battle.extraMoves.red === n, defId + ' 再动上限 ' + n);
+  }
+  eatTwice('lianhuanju', [5, 6, 7], 2); /* r3 珍品: 车连吃,上限2 */
+  eatTwice('lvbu', [5, 6, 7], 3);       /* r4 神品: 无双,上限3 */
+}
+{
   const b = newBoard();
   const t = makePiece('xuanwu', RED); placeAt(b, 5, 5, t);
   const foe = makePiece('s_ju', BLACK); placeAt(b, 5, 0, foe);

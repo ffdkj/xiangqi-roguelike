@@ -46,8 +46,16 @@ function makePiece(defId, side, opts) {
     attacksLeft: 0,
     /* 同棋子一回合只能「走步/远程」或「放技能」,二者不可兼得 */
     movedThisTurn: false, skilledThisTurn: false,
-    r: -1, c: -1, dead: false
+    rarity: def.r, r: -1, c: -1, dead: false
   };
+}
+
+/* 吃子再动/连射的「再行动」每回合上限,按品质分级(r1/r2=1次,r3=2次,r4=3次) */
+function extraMoveCap(piece) {
+  const r = piece.rarity;
+  if (r >= 4) return 3;
+  if (r === 3) return 2;
+  return 1;
 }
 function placeAt(board, r, c, piece) {
   board.grid[r][c] = piece;
@@ -556,7 +564,7 @@ function applyMove(board, piece, m, battle) {
         }
         case 'extraMove': {
           if (battle) {
-            battle.extraMoves[piece.side] = Math.min(battle.extraMoves[piece.side] + pas.n, 2);
+            battle.extraMoves[piece.side] = Math.min(battle.extraMoves[piece.side] + pas.n, extraMoveCap(piece));
             ev.texts.push('再动!');
           }
           break;
@@ -577,7 +585,7 @@ function performRangedAttack(board, piece, target, battle) {
   if (atk.multi) {
     piece.attacksLeft = (piece.attacksLeft || atk.multi) - 1;
     if (piece.attacksLeft > 0 && battle) {
-      battle.extraMoves[piece.side] = Math.min(battle.extraMoves[piece.side] + 1, 2);
+      battle.extraMoves[piece.side] = Math.min(battle.extraMoves[piece.side] + 1, extraMoveCap(piece));
       ev.texts.push('连射!');
     }
   }
