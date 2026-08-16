@@ -145,6 +145,7 @@ function buildShell() {
         <button class="btn btn-sm" id="btn-codex">图鉴</button>
         <button class="btn btn-sm" id="btn-help">帮助</button>
         <button class="btn btn-sm on" id="btn-autoend" title="走完步延迟0.5秒自动结束回合(建议先放技能再走子)">⏭ 自动回合:开</button>
+        <button class="btn btn-sm" id="btn-undo">↩ 悔棋</button>
         <button class="btn btn-sm" id="btn-savequit">保存退出</button>
         <button class="btn btn-sm btn-danger" id="btn-surrender">认输</button>
       </div>
@@ -176,6 +177,19 @@ function buildShell() {
     toast(UI.autoEnd ? '自动结束回合已开启: 走完步即自动结束' : '自动结束回合已关闭');
     if (UI.autoEnd) scheduleAutoEnd();
   };
+  $('#btn-undo').onclick = () => {
+    const b = UI.battle;
+    if (!b || b.over) { toast('当前没有可悔的棋'); return; }
+    cancelAutoEnd(); /* 撤销定时自动结束 */
+    UI.sel = null; UI.selMoves = []; UI.selTargets = [];
+    UI.skillPending = null; UI.inspect = null; UI.inspectMoves = []; UI.inspectTargets = [];
+    const res = playerUndo(b);
+    toast(res.text);
+    if (res.ok) {
+      UI.prevGrid = null; /* 重置动画追踪,避免误判删除 */
+      refresh();
+    }
+  };
   $('#btn-savequit').onclick = () => {
     if (!Run) return;
     if (UI.mode === 'battle' && UI.battle && !UI.battle.over && confirm('保存并退出?\n当前战斗将不保存胜负,进度存于本战开战前(战斗中阵亡的棋子将被计入阵亡)。')) {
@@ -205,6 +219,14 @@ function syncAutoEndBtn() {
   if (!btn) return;
   btn.textContent = '⏭ 自动回合:' + (UI.autoEnd ? '开' : '关');
   btn.classList.toggle('on', UI.autoEnd);
+}
+function syncUndoBtn() {
+  const btn = $('#btn-undo');
+  if (!btn) return;
+  const b = UI.battle;
+  const left = b && !b.over ? (b.undoLeft == null ? 3 : b.undoLeft) : 0;
+  btn.textContent = '↩ 悔棋(' + left + ')';
+  btn.classList.toggle('disabled', left <= 0 || (b && b.turn !== 'red'));
 }
 function refreshContinueBtn() {
   const btn = $('#btn-continue');
@@ -1060,7 +1082,7 @@ function showHelp() {
     <h3>存档与继续</h3>
     <p>进度自动保存(单栏位): 每次进入部署时自动存档;战斗中可点「保存退出」,下次从主菜单「继续征战」接着打(本场战斗从头再战,战斗中已阵亡的棋子计入阵亡)。<b>战败或通关后存档清除</b>。结算弹窗不可点外关闭,请用弹窗内按钮返回。</p>
     <h3>回合流程</h3>
-    <p>每回合<b>至多走一步 + 使用一次主动技能</b>,且<b>同一棋子一回合只能「移动/远程」或「放技能」,不可兼得</b>(吃子触发的「再动」仍算同一步的延续;技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动。右上角「⏭ 自动回合」开关: 开启后<b>走完步即延迟0.5秒自动结束回合</b>——建议先放技能再走子;关闭则手动结束。</p>
+    <p>每回合<b>至多走一步 + 使用一次主动技能</b>,且<b>同一棋子一回合只能「移动/远程」或「放技能」,不可兼得</b>(吃子触发的「再动」仍算同一步的延续;技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动。右上角「⏭ 自动回合」开关: 开启后<b>走完步即延迟0.5秒自动结束回合</b>——建议先放技能再走子;关闭则手动结束。<b>「↩ 悔棋」每场战斗至多3次</b>: 撤销我方最近一步及其后敌方的应手,回到我方回合起点。</p>
     <h3>生命与远程</h3>
     <p>生命超过1的棋子被吃时先扣血,攻击者被弹回原地;远程棋子可原地射击,不移动自身。</p>
     <h3>部署</h3>
@@ -1075,6 +1097,7 @@ function showHelp() {
 /* ---------------- 主刷新 ---------------- */
 function refresh() {
   battleTick();
+  syncUndoBtn();
   if (UI.mode === 'deploy') {
     renderBoard();
     renderDeploySidebar();

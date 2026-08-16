@@ -11,7 +11,7 @@ const files = [
 let code = files.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n;\n');
 /* 测试提速: 缩短AI演出延迟 */
 code = code.replace(/await sleep\(420\)/g, 'await sleep(3)');
-code += '\n;module.exports = { RED, BLACK, newBoard, placeAt, makePiece, genLegalMoves, genRangedTargets, isInCheck, sideHasLegalMoves, generalsFace, applyMove, skillUse, startSideTurn, endSideTurn, alivePieces, hasPas, Flow, startGame, playerSkill, playerRanged, playerMove, playerEndTurn, skillReady, skillTargets, getRun: () => Run, setRun: r => { Run = r; }, P_DEFS, DRAFT_POOL, battleTick, startBattle, defaultDeploy, makeRun, enemyArmySpec, zoneSquares, sideGeneral, attackPower, dealDamage, rarityWeights, weightedRarity, EVENTS, pickEvent, execFx, runEventFx, saveRun, loadSave, clearSave, hasSave, continueGame, applyCard, CONSUMABLES, randomPieceIdShift, maxRarityFor, rollDraft };\n';
+code += '\n;module.exports = { RED, BLACK, newBoard, placeAt, makePiece, genLegalMoves, genRangedTargets, isInCheck, sideHasLegalMoves, generalsFace, applyMove, skillUse, startSideTurn, endSideTurn, alivePieces, hasPas, Flow, startGame, playerSkill, playerRanged, playerMove, playerEndTurn, skillReady, skillTargets, getRun: () => Run, setRun: r => { Run = r; }, P_DEFS, DRAFT_POOL, battleTick, startBattle, defaultDeploy, makeRun, enemyArmySpec, zoneSquares, sideGeneral, attackPower, dealDamage, rarityWeights, weightedRarity, EVENTS, pickEvent, execFx, runEventFx, saveRun, loadSave, clearSave, hasSave, continueGame, applyCard, CONSUMABLES, randomPieceIdShift, maxRarityFor, rollDraft, snapshotBattle, restoreBattle, beginPlayerTurn, markRedActed, playerUndo };\n';
 const out = path.join(__dirname, '_combined.cjs');
 fs.writeFileSync(out, code);
 const G = require(out);
@@ -687,6 +687,80 @@ async function driveRed(battle) {
     return;
   }
   if (!battle.over) playerEndTurn(battle);
+}
+
+/* ---------------- 悔棋 ---------------- */
+{
+  /* 快照/恢复: 走子后还原到走子前(piece位置/血量/棋盘网格) */
+  const b = newBoard();
+  const p = makePiece('s_ju', RED); placeAt(b, 5, 4, p);
+  const t = makePiece('s_bing', BLACK); placeAt(b, 5, 6, t);
+  const battle = mkBattle(b);
+  battle.playerPieces = [p]; battle.enemyPieces = [t]; battle.summoned = [];
+  const snap = snapshotBattle(battle); /* 走子前快照 */
+  const fromR = p.r, fromC = p.c;
+  const m = genLegalMoves(b, p, { battle }).find(x => x.cap && x.target === t);
+  applyMove(b, p, m, battle);
+  assert(p.c === 6 && t.dead, '走子吃子生效');
+  restoreBattle(battle, snap);
+  assert(p.r === fromR && p.c === fromC && !p.dead, '悔棋快照还原走子前位置');
+  assert(battle.board.grid[p.r][p.c] === p, '悔棋后棋盘网格一致');
+}
+{
+  /* playerUndo 回退到回合起点(redActed路径), 次数递减 */
+  const b = newBoard();
+  const p = makePiece('s_ju', RED); placeAt(b, 5, 4, p);
+  const t = makePiece('s_bing', BLACK); placeAt(b, 5, 6, t);
+  const battle = mkBattle(b);
+  battle.playerPieces = [p]; battle.enemyPieces = [t]; battle.summoned = [];
+  beginPlayerTurn(battle);
+  const m = genLegalMoves(b, p, { battle }).find(x => x.cap);
+  applyMove(b, p, m, battle);
+  markRedActed(battle);
+  assert(p.c === 6, '行动后位置改变');
+  const res = playerUndo(battle);
+  assert(res.ok, '悔棋成功: ' + res.text);
+  assert(p.c === 4 && !t.dead, '悔棋还原吃子前');
+  assert(battle.undoLeft === 2, '悔棋次数递减到2');
+}
+{
+  /* playerUndo 跨回合(已结束回合): 退回上一回合起点 */
+  const b = newBoard();
+  const p = makePiece('s_ju', RED); placeAt(b, 5, 4, p);
+  const t = makePiece('s_bing', BLACK); placeAt(b, 5, 1, t);
+  const e = makePiece('s_ma', BLACK); placeAt(b, 2, 2, e);
+  const battle = mkBattle(b);
+  battle.playerPieces = [p]; battle.enemyPieces = [t, e]; battle.summoned = [];
+  beginPlayerTurn(battle);              /* 基线1(第1回合起点) */
+  const m = genLegalMoves(b, p, { battle }).find(x => x.cap);
+  applyMove(b, p, m, battle);
+  markRedActed(battle);
+  playerEndTurn(battle);                /* 结束回合(人工切回合,不跑敌方AI) */
+  endSideTurn(battle);                  /* 切到黑方 */
+  endSideTurn(battle);                  /* 敌方行动完毕,回到我方回合 */
+  beginPlayerTurn(battle);              /* 基线2(第2回合起点) */
+  assert(!battle.redActed, '新回合未行动');
+  const res = playerUndo(battle);       /* 跨回合悔棋 */
+  assert(res.ok, '跨回合悔棋成功: ' + res.text);
+  assert(battle.undoLeft === 2, '跨回合悔棋后次数递减');
+}
+{
+  /* 悔棋次数上限3次 */
+  const b = newBoard();
+  const p = makePiece('s_ju', RED); placeAt(b, 5, 4, p);
+  const t = makePiece('s_bing', BLACK); placeAt(b, 5, 6, t);
+  const battle = mkBattle(b);
+  battle.playerPieces = [p]; battle.enemyPieces = [t]; battle.summoned = [];
+  beginPlayerTurn(battle);
+  for (let i = 0; i < 3; i++) {
+    markRedActed(battle);
+    const r = playerUndo(battle);
+    assert(r.ok, '第' + (i + 1) + '次悔棋成功');
+  }
+  assert(battle.undoLeft === 0, '悔棋次数归零');
+  markRedActed(battle);
+  const r4 = playerUndo(battle);
+  assert(!r4.ok && /用完/.test(r4.text), '第4次悔棋被拒绝');
 }
 
 async function runSimulation(label) {

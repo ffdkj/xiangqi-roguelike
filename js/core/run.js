@@ -210,6 +210,8 @@ function startBattle(battleNo, placed, opts) {
     skillProb: spec.skillProb,
     ambush: !!opts.ambush,
     rewardShift: opts.rewardShift || 0,
+    /* 悔棋: 每场3次,快照压栈在每次玩家回合起点 */
+    undoLeft: 3, undoStack: [], redActed: false,
     logs: []
   };
   /* 初始气力(传令兵等) */
@@ -258,8 +260,47 @@ function startBattle(battleNo, placed, opts) {
   run.battle = battle;
   run.state = 'battle';
   startSideTurn(battle, RED);
+  beginPlayerTurn(battle);
   Flow.onBattleStart(battle);
   return battle;
+}
+
+/* 记录一次玩家行动,供悔棋判断(当前回合是否已行动) */
+function markRedActed(battle) {
+  if (battle) battle.redActed = true;
+}
+/* 玩家回合起点: 压入一份悔棋快照(供「悔棋」回到此处) */
+function beginPlayerTurn(battle) {
+  if (!battle) return;
+  if (!battle.undoStack) battle.undoStack = [];
+  if (battle.undoLeft == null) battle.undoLeft = 3;
+  battle.redActed = false;
+  battle.undoStack.push(snapshotBattle(battle));
+  if (battle.undoStack.length > 12) battle.undoStack.splice(0, battle.undoStack.length - 12);
+}
+
+/* 悔棋: 每场限3次。回到最近一次玩家回合起点(撤销我方上一步及其后的敌方响应) */
+function playerUndo(battle) {
+  if (!battle || battle.over || battle.settled) return { ok: false, text: '当前无法悔棋' };
+  if (battle.turn !== RED) return { ok: false, text: '需等到我方回合才能悔棋' };
+  if (battle.undoLeft <= 0) return { ok: false, text: '本场悔棋次数已用完(每场至多3次)' };
+  const st = battle.undoStack;
+  if (battle.redActed && st.length >= 1) {
+    /* 当前回合已行动: 退回到本回合起点 */
+    restoreBattle(battle, st[st.length - 1]);
+    battle.redActed = false;
+  } else if (st.length >= 2) {
+    /* 已结束回合、敌方已应手: 退到上一回合起点 */
+    st.pop();
+    restoreBattle(battle, st[st.length - 1]);
+    battle.redActed = false;
+  } else {
+    return { ok: false, text: '暂无可悔之棋' };
+  }
+  battle.undoLeft--;
+  logBattle(battle, '悔棋一次(本场还可悔棋 ' + battle.undoLeft + ' 次)');
+  Flow.onBattleStart && Flow.onBattleStart(battle);
+  return { ok: true, text: '悔棋成功(本场剩余 ' + battle.undoLeft + ' 次)' };
 }
 
 /* 突发战斗: 事件触发,不推进关卡数,胜利有特殊奖励 */
@@ -280,6 +321,7 @@ function playerMove(battle, piece, m) {
   const ev = applyMove(battle.board, piece, m, battle);
   battle.movedDone[RED] = true;
   piece.movedThisTurn = true;
+  markRedActed(battle);
   const cap = ev.captured.length ? '吃' + ev.captured.map(x => x.name).join('、') : '';
   logBattle(battle, SIDE_NAME[RED] + '·' + piece.name + ' (' + (from[1] + 1) + ',' + (from[0] + 1) + ')→(' + (m.c + 1) + ',' + (m.r + 1) + ') ' + cap + (ev.texts.length ? ' [' + ev.texts.join(';') + ']' : ''));
   if (ev.captured.length) runWinCheck(battle);
@@ -294,6 +336,7 @@ function playerRanged(battle, piece, target) {
   const ev = performRangedAttack(battle.board, piece, target, battle);
   battle.movedDone[RED] = true;
   piece.movedThisTurn = true;
+  markRedActed(battle);
   logBattle(battle, SIDE_NAME[RED] + '·' + piece.name + '远程攻击' + target.name + ': ' + ev.texts.join(';'));
   if (ev.killed) runWinCheck(battle);
   if (generalCaptured(battle.board, RED)) finishBattle(battle, BLACK);
@@ -302,6 +345,7 @@ function playerRanged(battle, piece, target) {
 function playerSkill(battle, piece, idx, target) {
   const res = skillUse(battle, piece, idx, target);
   if (res.ok) {
+    markRedActed(battle);
     logBattle(battle, SIDE_NAME[RED] + '·' + piece.name + '使用技能: ' + res.texts.join(';'));
     runWinCheck(battle);
     if (generalCaptured(battle.board, RED)) finishBattle(battle, BLACK);
@@ -329,6 +373,7 @@ async function pumpTurns(battle) {
       if (!Run || Run.state !== 'battle') return;
     }
     if (Run && Run.state === 'battle' && !battle.over && battle.turn === RED) {
+      beginPlayerTurn(battle);
       Flow.onBattleStart && Flow.onBattleStart(battle); /* 通知UI回到玩家回合 */
     }
   } catch (e) {

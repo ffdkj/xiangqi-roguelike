@@ -18,7 +18,7 @@ const files = [
 let code = files.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n;\n');
 code = code.replace(/await sleep\(420\)/g, 'await sleep(60)');
 /* 测试垫片: 暴露内部符号 */
-code += '\n;window.__X = { UI, boot, startGame, genLegalMoves, genRangedTargets, alivePieces, battleClick, refresh, finishBattle, RED, BLACK, MAX_DEPLOY, zoneSquares, skillTargets, skillUse, playerEndTurn, playerSkill, playerMove, playerRanged, getRun: () => Run, showEvent, showPickPieces, showPickGrave, showEventReward, backToMenu, refreshContinueBtn, saveRun, hasSave, clearSave, continueGame, EVENTS, CONSUMABLES, rollDraft, scheduleAutoEnd, cancelAutoEnd };\n';
+code += '\n;window.__X = { UI, boot, startGame, genLegalMoves, genRangedTargets, alivePieces, battleClick, refresh, finishBattle, RED, BLACK, MAX_DEPLOY, zoneSquares, skillTargets, skillUse, playerEndTurn, playerSkill, playerMove, playerRanged, getRun: () => Run, showEvent, showPickPieces, showPickGrave, showEventReward, backToMenu, refreshContinueBtn, saveRun, hasSave, clearSave, continueGame, EVENTS, CONSUMABLES, rollDraft, scheduleAutoEnd, cancelAutoEnd, playerUndo, snapshotBattle, restoreBattle, beginPlayerTurn, markRedActed };\n';
 window.eval(code);
 window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 const X = window.__X;
@@ -269,6 +269,25 @@ const q = s => doc.querySelector(s);
     q('#btn-fight').click();
     await sleep(80);
     assert(X.UI.mode === 'battle' && X.UI.battle && X.UI.battle.turn === 'red', '继续游戏后开战');
+
+    /* 6.1b 悔棋按钮及不可悔棋提示 */
+    const undoBtn = q('#btn-undo');
+    assert(!!undoBtn, '存在「↩ 悔棋」按钮');
+    undoBtn.click();
+    await sleep(30);
+    assert(X.UI.battle.undoLeft === 3, '刚开局(未行动)悔棋不扣次数');
+    /* 行动一步后再悔棋: 回到行动前 */
+    const ju = X.alivePieces(X.UI.battle.board, 'red').find(x => x.def.mv.t === 'chariot');
+    if (ju) {
+      const cap = X.genLegalMoves(X.UI.battle.board, ju, { battle: X.UI.battle }).find(x => x.cap);
+      const fromC = ju.c;
+      X.playerMove(X.UI.battle, ju, cap);
+      await sleep(30);
+      const res = X.playerUndo(X.UI.battle);
+      assert(res.ok && ju.c === fromC, '悔棋撤销本回合行动');
+    } else {
+      assert(true, '无可用车,跳过悔棋行动测试');
+    }
 
     /* 6.2 事件弹窗(合成事件) */
     let chosen = -1;

@@ -727,3 +727,74 @@ function generalCaptured(board, side) {
   const g = sideGeneral(board, side);
   return !g || g.dead;
 }
+
+/* ---------------- 悔棋快照(按玩家回合起点保存/恢复) ---------------- */
+function battlePiecesAll(battle) {
+  return (battle.playerPieces || []).concat(battle.enemyPieces || []);
+}
+function snapshotBattle(battle) {
+  const pieces = battlePiecesAll(battle).map(p => ({
+    p,
+    r: p.r, c: p.c, hp: p.hp, maxHp: p.maxHp, atk: p.atk, atkBoost: p.atkBoost,
+    dead: p.dead, temp: !!p.temp,
+    firstStrikeUsed: p.firstStrikeUsed, rebornUsed: p.rebornUsed,
+    movedThisTurn: p.movedThisTurn, skilledThisTurn: p.skilledThisTurn, attacksLeft: p.attacksLeft,
+    permHp: p.permHp, permAtk: p.permAtk, rage: p.rage,
+    stun: p.status.stun, poison: p.status.poison,
+    cdLeft: Object.assign({}, p.cdLeft), usesLeft: Object.assign({}, p.usesLeft)
+  }));
+  const boss = battle.boss;
+  return {
+    pieces,
+    turn: battle.turn, turnNo: battle.turnNo,
+    qi: { red: battle.qi.red, black: battle.qi.black },
+    extraMoves: { red: battle.extraMoves.red, black: battle.extraMoves.black },
+    skillUsed: { red: battle.skillUsed.red, black: battle.skillUsed.black },
+    movedDone: { red: battle.movedDone.red, black: battle.movedDone.black },
+    skipNext: { red: battle.skipNext.red, black: battle.skipNext.black },
+    turnAtkBonus: { red: battle.turnAtkBonus.red, black: battle.turnAtkBonus.black },
+    phase: battle.phase, bossExtra: battle.bossExtra,
+    bossCd: boss && boss.cdOverride ? Object.assign({}, boss.cdOverride) : null,
+    summonedIds: (battle.summoned || []).map(s => s.id)
+  };
+}
+function restoreBattle(battle, snap) {
+  Object.assign(battle.qi, snap.qi);
+  Object.assign(battle.extraMoves, snap.extraMoves);
+  Object.assign(battle.skillUsed, snap.skillUsed);
+  Object.assign(battle.movedDone, snap.movedDone);
+  Object.assign(battle.skipNext, snap.skipNext);
+  Object.assign(battle.turnAtkBonus, snap.turnAtkBonus);
+  battle.turn = snap.turn; battle.turnNo = snap.turnNo;
+  battle.phase = snap.phase; battle.bossExtra = snap.bossExtra;
+  if (battle.boss) {
+    if (snap.bossCd) battle.boss.cdOverride = snap.bossCd;
+    else delete battle.boss.cdOverride;
+  }
+  const snapByPiece = new Map(snap.pieces.map(s => [s.p, s]));
+  const baseId = new Set(snap.pieces.map(s => s.p.id));
+  /* 快照后新出现的棋子(召唤/刷出)作废 */
+  for (const p of battlePiecesAll(battle)) {
+    if (snapByPiece.has(p)) continue;
+    p.dead = true; p.hp = 0; p.r = -1; p.c = -1; p.temp = true;
+  }
+  /* 恢复棋盘网格与所有棋子字段(原位改写,保持对象身份/引用不变) */
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) battle.board.grid[r][c] = null;
+  for (const s of snap.pieces) {
+    const p = s.p;
+    p.r = s.r; p.c = s.c; p.hp = s.hp; p.maxHp = s.maxHp; p.atk = s.atk; p.atkBoost = s.atkBoost;
+    p.dead = s.dead; p.temp = s.temp;
+    p.firstStrikeUsed = s.firstStrikeUsed; p.rebornUsed = s.rebornUsed;
+    p.movedThisTurn = s.movedThisTurn; p.skilledThisTurn = s.skilledThisTurn; p.attacksLeft = s.attacksLeft;
+    p.permHp = s.permHp; p.permAtk = s.permAtk; p.rage = s.rage;
+    p.status.stun = s.stun; p.status.poison = s.poison;
+    p.cdLeft = Object.assign({}, s.cdLeft); p.usesLeft = Object.assign({}, s.usesLeft);
+    if (!p.dead) battle.board.grid[p.r][p.c] = p;
+  }
+  /* 重建 summoned(按快照时的 id, 且只在存活敌营中找,防止误报已作废的新棋子) */
+  battle.summoned = [];
+  for (const p of battlePiecesAll(battle)) {
+    if (!baseId.has(p.id)) continue;
+    if (!p.dead && snap.summonedIds.indexOf(p.id) >= 0) battle.summoned.push(p);
+  }
+}
