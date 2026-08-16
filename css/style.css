@@ -94,20 +94,25 @@ body {
   background: radial-gradient(circle at 34% 30%, #fdf3da, #eed9a8 60%, #d4b57e);
   box-shadow: 0 4px 10px rgba(0, 0, 0, .5), inset 0 -3px 6px rgba(120, 80, 20, .35);
   z-index: 2; transition: left .25s ease, top .25s ease;
+  /* 尺寸容器: 字与徽记按棋子自身大小缩放,窄屏不溢出 */
+  container-type: size;
+  white-space: nowrap;
 }
 .pc.side-red { color: #a32b20; }
 .pc.side-black { color: #1d1a16; background: radial-gradient(circle at 34% 30%, #f2e6c8, #dcc9a0 60%, #b89e74); }
-.pc .pc-ch { font-size: 2.35em; }
-.pc .pc-sub { font-size: 1em; margin-left: 1px; }
+.pc .pc-ch { font-size: clamp(16px, 56cqw, 37px); }
+.pc .pc-sub { font-size: clamp(7px, 24cqw, 16px); margin-left: 1px; }
 .pc .hp-badge {
-  position: absolute; right: -4%; bottom: -6%; font-size: 9.5px; font-weight: 700;
+  position: absolute; right: -4%; bottom: -6%; font-weight: 700;
+  font-size: clamp(7px, 15cqw, 10px);
   background: #20331c; color: #b8e986; border: 1px solid #4c7a38; border-radius: 8px; padding: 1px 4px; line-height: 1.1;
 }
 .pc .atk-badge {
-  position: absolute; left: -6%; top: -8%; font-size: 10px; font-weight: 800;
+  position: absolute; left: -6%; top: -8%; font-weight: 800;
+  font-size: clamp(7px, 16cqw, 10px);
   background: #5b1c14; color: #ffb4a5; border: 1px solid #a3412f; border-radius: 8px; padding: 1px 4px; line-height: 1.1;
 }
-.pc .st-icon { position: absolute; font-size: 11px; }
+.pc .st-icon { position: absolute; font-size: clamp(8px, 17cqw, 11px); }
 .pc .st-icon:first-of-type { left: 0; top: 0; }
 .pc .st-icon:last-of-type { right: 0; top: 0; }
 .pc.sm { width: 8%; }
@@ -117,12 +122,12 @@ body {
 .pc.rar-3 { border-color: #b56dff; box-shadow: 0 4px 10px rgba(0,0,0,.5), 0 0 10px rgba(181,109,255,.6); }
 .pc.rar-4 { border-color: #ffb300; box-shadow: 0 4px 10px rgba(0,0,0,.5), 0 0 12px rgba(255,179,0,.65); }
 .pc.gen { width: 10.8%; border-color: #b98a3e; box-shadow: 0 0 16px rgba(240, 207, 107, .8), 0 4px 10px rgba(0,0,0,.5); }
-.pc.gen .pc-ch { font-size: 2.6em; }
+.pc.gen .pc-ch { font-size: clamp(18px, 58cqw, 41px); }
 /* 将帅/王 特殊标注 */
 .king-badge {
   position: absolute; top: -14%; left: 50%; transform: translateX(-50%);
   background: linear-gradient(180deg, #ffe9a8, #d4af37);
-  color: #4a2c05; font-size: 10.5px; font-weight: 900; line-height: 1;
+  color: #4a2c05; font-size: clamp(8px, 17cqw, 11px); font-weight: 900; line-height: 1;
   border: 1px solid #8a6414; border-radius: 8px; padding: 2px 5px;
   box-shadow: 0 0 8px rgba(255, 215, 90, .9); z-index: 3; pointer-events: none;
 }
@@ -303,6 +308,9 @@ body {
 @media (max-width: 900px) {
   #board-wrap { width: min(94vw, 76vh); margin: 0 auto; }
   #sidebar { width: min(94vw, 560px); max-height: none; }
+  /* 窄屏: 棋子略加大,点按更易、文字更舒展(仍为单格内) */
+  .pc { width: 10.6%; }
+  .pc.gen { width: 11.4%; }
   .menu-title { font-size: 46px; letter-spacing: 8px; }
   .card { width: min(80vw, 300px); }
   /* 触屏友好: 加大点按目标 */

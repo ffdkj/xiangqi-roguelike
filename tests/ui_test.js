@@ -44,6 +44,10 @@ const q = s => doc.querySelector(s);
     /* 移动端与王标回归 */
     assert(/touch-action:\s*manipulation/.test(css), '移动端触控适配(touch-action)');
     assert(/\.king-badge\s*\{/.test(css), '将帅/王特殊标注样式存在');
+    /* 窄屏棋子缩放回归 */
+    assert(/\.pc\s*\{[^}]*container-type:\s*size/.test(css), '棋子为尺寸容器(文字随棋子缩放)');
+    assert(/56cqw/.test(css), '棋子文字使用cqw按尺寸缩放');
+    assert(/\.pc\s*\{\s*width:\s*10\.6%/.test(css), '窄屏棋子加大且仍在单格内');
 
     /* 1. 菜单 */
     assert(q('#screen-menu') && !q('#screen-menu').classList.contains('hidden'), '菜单显示');
