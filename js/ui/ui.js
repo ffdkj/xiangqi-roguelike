@@ -15,7 +15,12 @@ const UI = {
   thinking: false,
   lastMove: null,
   inspect: null, inspectMoves: [], inspectTargets: [],
-  detailModal: null
+  detailModal: null,
+  /* 动画与自动回合 */
+  pieceEls: new Map(),
+  prevGrid: null,
+  autoEnd: true,
+  autoEndTimer: null
 };
 
 function $(s) { return document.querySelector(s); }
@@ -138,6 +143,7 @@ function buildShell() {
       <div class="top-right">
         <button class="btn btn-sm" id="btn-codex">图鉴</button>
         <button class="btn btn-sm" id="btn-help">帮助</button>
+        <button class="btn btn-sm on" id="btn-autoend" title="走步与技能都完成后延迟0.5秒自动结束回合;若场上无可用的技能,走步后即自动结束">⏭ 自动回合:开</button>
         <button class="btn btn-sm" id="btn-savequit">保存退出</button>
         <button class="btn btn-sm btn-danger" id="btn-surrender">认输</button>
       </div>
@@ -162,6 +168,13 @@ function buildShell() {
   $('#btn-codex-menu').onclick = showCodex;
   $('#btn-help').onclick = showHelp;
   $('#btn-help-menu').onclick = showHelp;
+  $('#btn-autoend').onclick = () => {
+    UI.autoEnd = !UI.autoEnd;
+    try { localStorage.setItem('chuhan_autoend', UI.autoEnd ? '1' : '0'); } catch (e) {}
+    syncAutoEndBtn();
+    toast(UI.autoEnd ? '自动结束回合已开启' : '自动结束回合已关闭');
+    if (UI.autoEnd) scheduleAutoEnd();
+  };
   $('#btn-savequit').onclick = () => {
     if (!Run) return;
     if (UI.mode === 'battle' && UI.battle && !UI.battle.over && confirm('保存并退出?\n当前战斗将不保存胜负,进度存于本战开战前(战斗中阵亡的棋子将被计入阵亡)。')) {
@@ -186,6 +199,12 @@ function buildShell() {
 }
 function hideMenu() { $('#screen-menu').classList.add('hidden'); $('#screen-game').classList.remove('hidden'); }
 function showMenu() { $('#screen-menu').classList.remove('hidden'); $('#screen-game').classList.add('hidden'); }
+function syncAutoEndBtn() {
+  const btn = $('#btn-autoend');
+  if (!btn) return;
+  btn.textContent = '⏭ 自动回合:' + (UI.autoEnd ? '开' : '关');
+  btn.classList.toggle('on', UI.autoEnd);
+}
 function refreshContinueBtn() {
   const btn = $('#btn-continue');
   if (btn) btn.classList.toggle('hidden', !hasSave());
@@ -196,6 +215,7 @@ function backToMenu() {
   UI.sel = null; UI.selMoves = []; UI.selTargets = [];
   UI.skillPending = null; UI.deploy = null; UI.deployCb = null; UI.rewardCb = null;
   UI.thinking = false; UI.lastMove = null; UI.inspect = null; UI.inspectMoves = []; UI.inspectTargets = []; UI.detailModal = null;
+  cancelAutoEnd();
   closeAllModals();
   showMenu();
   refreshContinueBtn();
@@ -240,7 +260,8 @@ function pieceClass(p) {
   if (p.isBoss) cls += ' boss';
   return cls;
 }
-function pieceHtml(p, small) {
+/* 棋子内部HTML(不含定位,定位由持久DOM元素更新实现移动动画) */
+function pieceInner(p) {
   const name = displayName(p.defId, p.side);
   let badge = '';
   if (p.maxHp > 1) badge = '<span class="hp-badge">' + Math.max(0, p.hp) + '/' + p.maxHp + '</span>';
@@ -249,18 +270,37 @@ function pieceHtml(p, small) {
   if (p.status.stun > 0) st += '<span class="st-icon">💫</span>';
   if (p.status.poison > 0) st += '<span class="st-icon">☠️</span>';
   const dmg = attackPower(p, UI.battle);
-  return `<div class="${pieceClass(p)}${small ? ' sm' : ''}" style="left:${p.c / 8 * 100}%;top:${p.r / 9 * 100}%" title="${esc(name)}">` +
-    `<span class="pc-ch">${esc(name.length > 1 ? name.slice(0, 1) : name)}</span>` +
+  return `<span class="pc-ch">${esc(name.length > 1 ? name.slice(0, 1) : name)}</span>` +
     (name.length > 1 ? `<span class="pc-sub">${esc(name.slice(1))}</span>` : '') +
     (dmg > 1 ? `<span class="atk-badge">${dmg}</span>` : '') +
-    badge + st + '</div>';
+    badge + st;
+}
+function pieceKey(p) {
+  return [p.id, p.hp, p.maxHp, attackPower(p, UI.battle), p.status.stun, p.status.poison, p.defId].join('|');
+}
+
+function spawnCaptureFx(bEl, r, c) {
+  const d = document.createElement('div');
+  d.className = 'capture-fx';
+  d.style.left = (c / 8 * 100) + '%';
+  d.style.top = (r / 9 * 100) + '%';
+  bEl.appendChild(d);
+  setTimeout(() => d.remove(), 650);
 }
 
 function renderBoard() {
   const bEl = $('#board');
-  bEl.innerHTML = BOARD_SVG;
+  /* 棋盘底图只建一次 */
+  if (!bEl._svgEl) { bEl.innerHTML = BOARD_SVG; bEl._svgEl = bEl.querySelector('.board-bg'); }
+  /* 移除旧标记 */
+  bEl.querySelectorAll('.mk').forEach(m => m.remove());
   const board = UI.battle ? UI.battle.board : (UI.mode === 'deploy' ? UI.deploy.board : null);
-  if (!board) return;
+  if (!board) {
+    UI.pieceEls.forEach(node => node.remove());
+    UI.pieceEls.clear();
+    UI.prevGrid = null;
+    return;
+  }
   /* 部署区高亮 */
   if (UI.mode === 'deploy' && UI.deploy.sel) {
     for (const [r, c] of UI.deploy.zone) {
@@ -303,11 +343,41 @@ function renderBoard() {
     bEl.appendChild(marker(UI.lastMove[0], UI.lastMove[1], 'lastmove'));
     bEl.appendChild(marker(UI.lastMove[2], UI.lastMove[3], 'lastmove'));
   }
-  /* 棋子 */
+  /* 棋子: 持久DOM元素,位置变化走CSS过渡(移动动画) */
+  const prev = UI.prevGrid || {};
+  const now = {};
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const p = board.grid[r][c];
-    if (p) bEl.insertAdjacentHTML('beforeend', pieceHtml(p));
+    if (!p) continue;
+    now[p.id] = [r, c];
+    let node = UI.pieceEls.get(p.id);
+    if (!node) {
+      node = document.createElement('div');
+      node.dataset.pid = p.id;
+      UI.pieceEls.set(p.id, node);
+      bEl.appendChild(node);
+      node._key = null;
+    }
+    const key = pieceKey(p);
+    if (node._key !== key) {
+      node._key = key;
+      node.className = pieceClass(p);
+      node.innerHTML = pieceInner(p);
+      node.title = displayName(p.defId, p.side);
+    }
+    const left = (p.c / 8 * 100) + '%';
+    const top = (p.r / 9 * 100) + '%';
+    if (node._l !== left) { node._l = left; node.style.left = left; }
+    if (node._t !== top) { node._t = top; node.style.top = top; }
   }
+  /* 消失的棋子: 战斗中播吃子/阵亡特效 */
+  if (UI.mode === 'battle') {
+    for (const id in prev) {
+      if (!now[id]) spawnCaptureFx(bEl, prev[id][0], prev[id][1]);
+    }
+  }
+  UI.pieceEls.forEach((node, id) => { if (!now[id]) { node.remove(); UI.pieceEls.delete(id); } });
+  UI.prevGrid = now;
   /* 被将军警示 */
   if (UI.battle && !UI.battle.over && UI.battle.turn === RED && isInCheck(board, RED, UI.battle)) {
     const g = sideGeneral(board, RED);
@@ -350,6 +420,7 @@ function consumeAction(b) {
 function battleClick(r, c) {
   const b = UI.battle;
   if (!b || b.over || b.turn !== RED || UI.thinking) return;
+  cancelAutoEnd();
   const piece = b.board.grid[r][c];
   /* 技能瞄准中 */
   if (UI.skillPending) {
@@ -360,18 +431,21 @@ function battleClick(r, c) {
       const res = playerSkill(b, sk.piece, sk.idx, piece);
       toast(res.texts.join(';'));
       UI.skillPending = null; UI.sel = null; refresh();
+      if (res.ok) scheduleAutoEnd();
       return;
     }
     if (need === 'ally' && piece && piece.side === RED && tg.includes(piece)) {
       const res = playerSkill(b, sk.piece, sk.idx, piece);
       toast(res.texts.join(';'));
       UI.skillPending = null; UI.sel = null; refresh();
+      if (res.ok) scheduleAutoEnd();
       return;
     }
     if (need === 'square' && tg.some(s => s.r === r && s.c === c)) {
       const res = playerSkill(b, sk.piece, sk.idx, { r, c });
       toast(res.texts.join(';'));
       UI.skillPending = null; UI.sel = null; refresh();
+      if (res.ok) scheduleAutoEnd();
       return;
     }
     UI.skillPending = null; UI.sel = null; refresh();
@@ -433,6 +507,36 @@ function afterAction() {
     banner('再动!', '剩余' + UI.battle.extraMoves[RED] + '次行动,可继续走子,或结束回合');
   }
   refresh();
+  scheduleAutoEnd();
+}
+
+/* ---------------- 自动结束回合(可开关) ---------------- */
+function anyReadySkill(b) {
+  return alivePieces(b.board, RED).some(p => !p.dead && p.status.stun === 0 && p.def.act &&
+    p.def.act.some((a, i) => skillReady(b, p, i).ok));
+}
+function cancelAutoEnd() {
+  if (UI.autoEndTimer) { clearTimeout(UI.autoEndTimer); UI.autoEndTimer = null; }
+}
+/* 走步与技能都完成后延迟0.5s自动结束回合; 场上无可用技能时走步后即触发 */
+function scheduleAutoEnd() {
+  cancelAutoEnd();
+  if (!UI.autoEnd) return;
+  const b = UI.battle;
+  if (!b || b.over || b.turn !== RED || UI.thinking || UI.skillPending) return;
+  if (!b.movedDone[RED] || b.extraMoves[RED] > 0) return;
+  if (!b.skillUsed[RED] && anyReadySkill(b)) return;
+  UI.autoEndTimer = setTimeout(() => {
+    UI.autoEndTimer = null;
+    const b2 = UI.battle;
+    if (!b2 || b2.over || b2.turn !== RED || UI.thinking || UI.skillPending) return;
+    if (!b2.movedDone[RED] || b2.extraMoves[RED] > 0) return;
+    if (!b2.skillUsed[RED] && anyReadySkill(b2)) return;
+    UI.sel = null; UI.skillPending = null;
+    playerEndTurn(b2);
+    UI.thinking = true;
+    refresh();
+  }, 500);
 }
 
 /* ---------------- 侧栏 ---------------- */
@@ -497,6 +601,7 @@ function renderSidebar() {
           const res = playerSkill(b, UI.sel, idx, null);
           toast(res.texts.join(';'));
           UI.sel = null; refresh();
+          if (res.ok) scheduleAutoEnd();
         } else {
           UI.skillPending = { piece: UI.sel, idx, act };
           refresh();
@@ -723,6 +828,8 @@ function showDeploy(run, battleNo, cb) {
   UI.battle = null;
   UI.deployCb = cb;
   UI.sel = null;
+  UI.prevGrid = null;
+  cancelAutoEnd();
   /* 默认布阵 */
   const placed = defaultDeploy(run, battleNo);
   const grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -842,6 +949,8 @@ function onBattleStart(battle) {
     UI.mode = 'battle';
     UI.sel = null; UI.skillPending = null; UI.lastMove = null; UI.inspect = null; UI.inspectMoves = []; UI.inspectTargets = []; UI.detailModal = null;
     UI.thinking = false;
+    UI.prevGrid = null;
+    cancelAutoEnd();
     const spec = enemyArmySpec(battle.no, battle.playerPieces.length);
     if (battle.ambush) {
       banner('⚡ 突发战斗 · ' + battle.theme.name, '敌军' + spec.ids.length + '子,击破来敌可得特殊奖励!');
@@ -900,6 +1009,7 @@ function pieceDetailHtml(p) {
 }
 function showEnemyDetail(p) {
   closeAllModals();
+  cancelAutoEnd();
   UI.inspect = p;
   const m = modal(pieceDetailHtml(p));
   UI.detailModal = m;
@@ -955,7 +1065,7 @@ function showHelp() {
     <h3>存档与继续</h3>
     <p>进度自动保存(单栏位): 每次进入部署时自动存档;战斗中可点「保存退出」,下次从主菜单「继续征战」接着打(本场战斗从头再战,战斗中已阵亡的棋子计入阵亡)。<b>战败或通关后存档清除</b>。结算弹窗不可点外关闭,请用弹窗内按钮返回。</p>
     <h3>回合流程</h3>
-    <p>每回合<b>至多走一步 + 使用一次主动技能</b>,且<b>同一棋子一回合只能「移动/远程」或「放技能」,不可兼得</b>(吃子触发的「再动」仍算同一步的延续;技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动。</p>
+    <p>每回合<b>至多走一步 + 使用一次主动技能</b>,且<b>同一棋子一回合只能「移动/远程」或「放技能」,不可兼得</b>(吃子触发的「再动」仍算同一步的延续;技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动。右上角「⏭ 自动回合」开关: 开启后,走步与技能都完成会延迟0.5秒自动进入敌方回合;若场上没有可用的技能,走完步即自动结束。</p>
     <h3>生命与远程</h3>
     <p>生命超过1的棋子被吃时先扣血,攻击者被弹回原地;远程棋子可原地射击,不移动自身。</p>
     <h3>部署</h3>
@@ -987,6 +1097,8 @@ function refresh() {
 function boot() {
   buildShell();
   refreshContinueBtn();
+  try { UI.autoEnd = localStorage.getItem('chuhan_autoend') !== '0'; } catch (e) {}
+  syncAutoEndBtn();
   const boardEl = $('#board');
   boardEl.addEventListener('click', e => {
     const pos = boardPosFromEvent(e);

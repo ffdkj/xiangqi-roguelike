@@ -18,7 +18,7 @@ const files = [
 let code = files.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n;\n');
 code = code.replace(/await sleep\(420\)/g, 'await sleep(60)');
 /* 测试垫片: 暴露内部符号 */
-code += '\n;window.__X = { UI, boot, startGame, genLegalMoves, genRangedTargets, alivePieces, battleClick, refresh, finishBattle, RED, BLACK, MAX_DEPLOY, zoneSquares, skillTargets, skillUse, playerEndTurn, playerSkill, playerMove, playerRanged, getRun: () => Run, showEvent, showPickPieces, showPickGrave, showEventReward, backToMenu, refreshContinueBtn, saveRun, hasSave, clearSave, continueGame, EVENTS, CONSUMABLES, rollDraft };\n';
+code += '\n;window.__X = { UI, boot, startGame, genLegalMoves, genRangedTargets, alivePieces, battleClick, refresh, finishBattle, RED, BLACK, MAX_DEPLOY, zoneSquares, skillTargets, skillUse, playerEndTurn, playerSkill, playerMove, playerRanged, getRun: () => Run, showEvent, showPickPieces, showPickGrave, showEventReward, backToMenu, refreshContinueBtn, saveRun, hasSave, clearSave, continueGame, EVENTS, CONSUMABLES, rollDraft, anyReadySkill, scheduleAutoEnd, cancelAutoEnd };\n';
 window.eval(code);
 window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 const X = window.__X;
@@ -48,6 +48,9 @@ const q = s => doc.querySelector(s);
     assert(/\.pc\s*\{[^}]*container-type:\s*size/.test(css), '棋子为尺寸容器(文字随棋子缩放)');
     assert(/56cqw/.test(css), '棋子文字使用cqw按尺寸缩放');
     assert(/\.pc\s*\{\s*width:\s*10\.6%/.test(css), '窄屏棋子加大且仍在单格内');
+    /* 动画与自动回合回归 */
+    assert(/\.capture-fx\s*\{/.test(css) && /capPop/.test(css), '吃子特效样式存在');
+    assert(/\.btn\.on\s*\{/.test(css), '自动回合开关激活态样式存在');
 
     /* 1. 菜单 */
     assert(q('#screen-menu') && !q('#screen-menu').classList.contains('hidden'), '菜单显示');
@@ -57,6 +60,14 @@ const q = s => doc.querySelector(s);
     q('#btn-help-menu').click();
     assert(q('.help-body'), '帮助弹窗');
     q('#btn-help').click(); /* 再点一次关闭 */
+
+    /* 1.2 自动回合开关 */
+    const btnAuto = q('#btn-autoend');
+    assert(btnAuto && btnAuto.textContent.indexOf('开') >= 0, '自动回合开关默认开启');
+    btnAuto.click();
+    assert(btnAuto.textContent.indexOf('关') >= 0, '自动回合开关可切换为关');
+    btnAuto.click();
+    assert(btnAuto.textContent.indexOf('开') >= 0, '自动回合开关切回为开');
 
     /* 2. 开局双选 */
     q('#btn-start').click();
@@ -77,6 +88,8 @@ const q = s => doc.querySelector(s);
     assert(X.UI.mode === 'battle', '战斗开始');
     assert(X.UI.battle && X.UI.battle.turn === 'red', '红方先行');
     assert(doc.querySelectorAll('#board .pc').length > 20, '双方棋子渲染');
+    /* 主流程关闭自动回合,保持确定性 */
+    X.UI.autoEnd = false;
 
     /* 4. 模拟数回合(用安全走法: 优先来回走相,保证战斗持续) */
     const W = X;
@@ -100,7 +113,10 @@ const q = s => doc.querySelector(s);
       if (!mover || !mv) break;
       X.battleClick(mover.r, mover.c);
       assert(X.UI.sel === mover, '选中棋子');
+      const moverEl = doc.querySelector('#board .pc[data-pid="' + mover.id + '"]');
       X.battleClick(mv.r, mv.c);
+      /* 移动动画: 同一棋子复用同一DOM元素(位置走CSS过渡) */
+      assert(doc.querySelector('#board .pc[data-pid="' + mover.id + '"]') === moverEl, '棋子DOM持久化(移动动画)');
       if (b.over) break;
       assert(q('#btn-end'), '有结束回合按钮');
       q('#btn-end').click();
@@ -109,6 +125,27 @@ const q = s => doc.querySelector(s);
     }
     assert(X.UI.battle.turnNo >= 1, '至少完成一个回合');
     console.log('  模拟回合完成, turnNo=' + X.UI.battle.turnNo + ', 红方存活=' + X.UI.battle.playerPieces.filter(p => !p.dead).length);
+
+    /* 4.5 自动结束回合(0.5s延迟,无可用技能时走步后触发) */
+    if (X.UI.mode === 'battle' && !X.UI.battle.over && X.UI.battle.turn === X.RED) {
+      const bb = X.UI.battle;
+      const saved = bb.playerPieces.map(p => [p, p.def.act]);
+      bb.playerPieces.forEach(p => { p.def.act = null; }); /* 屏蔽全部技能,保证"无可用技能"分支 */
+      X.UI.autoEnd = true;
+      const mp = X.alivePieces(bb.board, X.RED).find(p => p.status.stun === 0 && X.genLegalMoves(bb.board, p, { battle: bb }).some(m => !m.cap));
+      if (mp) {
+        const mv0 = X.genLegalMoves(bb.board, mp, { battle: bb }).find(m => !m.cap);
+        X.battleClick(mp.r, mp.c);
+        X.battleClick(mv0.r, mv0.c);
+        await sleep(200);
+        assert(bb.movedDone[X.RED] === true && bb.turn === X.RED, '0.5秒延迟内不跳转');
+        await sleep(700);
+        assert(bb.movedDone[X.RED] === false, '延迟0.5秒后自动跳转敌军回合');
+      }
+      saved.forEach(([p, act]) => { p.def.act = act; });
+      X.UI.autoEnd = false;
+      await sleep(500); /* 等敌方回合结束回到红方 */
+    }
 
     /* 5. 技能面板: 选中有主动技能的棋子 */
     const b = X.UI.battle;

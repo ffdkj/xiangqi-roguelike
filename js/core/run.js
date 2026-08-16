@@ -12,6 +12,7 @@ const Flow = {
   onDraft(cards, round, total, cb) { cb(cards[0]); },
   onDeploy(run, battleNo, cb) { cb(defaultDeploy(run, battleNo)); },
   onBattleStart(battle) {},
+  onEnemyAction(battle) {},
   onReward(cards, cb) { cb(cards[0]); },
   onEvent(ev, cb) { cb(0); },
   onPickPieces(run, n, title, note, cb) { cb(run.roster.filter(p => p.defId !== 's_jiang').slice(0, n)); },

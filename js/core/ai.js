@@ -227,6 +227,7 @@ async function enemyTurn(battle) {
       logBattle(battle, SIDE_NAME[BLACK] + '·' + action.piece.name + '远程攻击' + action.target.name + ': ' + ev.texts.join(';'));
       if (generalCaptured(battle.board, RED)) { battle.over = true; battle.winner = BLACK; battle.reason = 'capture'; break; }
     }
+    if (Flow.onEnemyAction) Flow.onEnemyAction(battle); /* 通知UI渲染移动动画 */
     actions++;
     if (battle.extraMoves[side] > 0) {
       battle.extraMoves[side]--;
@@ -236,6 +237,7 @@ async function enemyTurn(battle) {
   if (!battle.over) {
     await sleep(420);
     tryUseSkill(battle);
+    if (Flow.onEnemyAction) Flow.onEnemyAction(battle);
   }
   if (!battle.over) endSideTurn(battle);
 }

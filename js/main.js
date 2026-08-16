@@ -9,6 +9,7 @@ window.addEventListener('DOMContentLoaded', () => {
   Flow.onDraft = (cards, round, total, cb) => showDraft(cards, round, total, cb);
   Flow.onDeploy = (run, battleNo, cb) => showDeploy(run, battleNo, cb);
   Flow.onBattleStart = (battle) => onBattleStart(battle);
+  Flow.onEnemyAction = (battle) => { if (UI.battle === battle) renderBoard(); };
   Flow.onReward = (cards, cb) => showReward(cards, cb);
   Flow.onEvent = (ev, cb) => showEvent(ev, cb);
   Flow.onPickPieces = (run, n, title, note, cb) => showPickPieces(run, n, title, note, cb);
