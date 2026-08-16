@@ -27,7 +27,7 @@ D('s_pao', '炮', '炮', 0, 'back3', 1, 1, 4.5, { t: 'cannon', screens: 1 }, nul
 D('s_bing', '兵', '兵', 0, 'river', 1, 1, 1, { t: 'pawn' }, null, null, '勇往直前。过河前只进不退,过河后可横行。');
 
 /* ---------------- 马系骑兵 ---------------- */
-D('tianma', '天马', '天', 2, 'back3', 1, 1, 4.5, { t: 'horse', noLeg: 1 }, null, null, '行空: 不受蹩马腿限制,日字任意驰骋。');
+D('tianma', '天马', '天', 2, 'back3', 2, 1, 5, { t: 'horse', noLeg: 1 }, null, null, '行空: 不受蹩马腿限制,日字任意驰骋;神骏,拥有2点生命。');
 D('tieji', '铁骑', '铁', 1, 'back3', 2, 1, 3.5, { t: 'horse' }, null, null, '铁甲: 身披重甲,拥有2点生命。');
 D('lianhuanma', '连环马', '环', 3, 'back3', 1, 1, 5, { t: 'horse' }, [{ id: 'onCapture', type: 'extraMove', n: 1 }], null, '连环: 吃子后可再行动一次(每回合限一次)。');
 D('chitu', '赤兔', '兔', 2, 'back3', 1, 1, 4.5, { t: 'union', m: [{ t: 'horse', noLeg: 1 }, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }] }, null, null, '人中吕布,马中赤兔: 日字如飞,亦可横直一步。');
@@ -48,7 +48,7 @@ D('gongcheng', '攻城车', '攻', 3, 'back3', 1, 1, 5, { t: 'chariot' }, null, 
 D('chongchui', '冲城锤', '锤', 2, 'back3', 1, 1, 4.5, { t: 'chariot' }, [{ id: 'onCapture', type: 'dmgBehind', n: 1 }], null, '撞击: 吃子时,对其身后紧邻的敌人造成1点伤害。');
 
 /* ---------------- 炮系 ---------------- */
-D('shenpao', '神炮', '神', 3, 'back3', 1, 1, 6.5, { t: 'cannon', screens: 0 }, null, null, '无架自鸣: 无需炮架即可隔空吃子,如同车一般。');
+D('shenpao', '神炮', '神', 3, 'back3', 1, 1, 6.5, { t: 'union', m: [{ t: 'chariot' }, { t: 'cannon', screens: 1 }] }, null, null, '通贯: 既可如车般直取首敌,亦可如炮般隔一炮架轰击,当车亦当炮。');
 D('lianzhupao', '连珠炮', '珠', 3, 'back3', 1, 1, 6, { t: 'cannon' }, [{ id: 'onCapture', type: 'extraMove', n: 1 }], null, '连发: 吃子后可再行动一次(每回合限一次)。');
 D('hongyi', '红衣大炮', '轰', 3, 'back3', 1, 1, 6, { t: 'cannon' }, null, [{ id: 'aoeBox', cd: 4, cost: 1, p: { dist: 3, size: 3, dmg: 1 } }], '炮轰: 3格内任选中心,3×3范围敌人受1点伤害。');
 D('paijipao', '迫击炮', '迫', 2, 'back3', 1, 1, 5, { t: 'cannon', screens: 2 }, null, null, '曲射: 隔两子亦可轰击目标。');
@@ -65,7 +65,7 @@ D('gansi', '敢死队', '敢', 2, 'ownHalf', 1, 1, 3, { t: 'pawn' }, [{ id: 'dmg
 D('jinjun', '禁军', '禁', 2, 'ownHalf', 1, 1, 3.5, { t: 'union', m: [{ t: 'pawn' }, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]], palace: 1 }] }, [{ id: 'auraDef', n: 1 }], null, '护驾: 身处九宫内时如卫士八面行走,相邻友军受伤害-1。');
 
 /* ---------------- 远程步战 ---------------- */
-D('gongshou', '弓手', '弓', 1, 'back2', 1, 1, 2.5, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }, null, null, '直射: 直线射击2格内的敌人(不可越子)。', { type: 'line', len: 2 });
+D('gongshou', '弓手', '弓', 1, 'back2', 1, 1, 2.5, { t: 'charger', len: 2, noCap: 1 }, null, null, '机敏: 可直线行走两格(不可越子、不可吃);直射: 直线射击2格内的敌人(可越子)。', { type: 'line', len: 2, jump: 1 });
 D('shenshe', '神射手', '射', 2, 'back2', 1, 1, 3.5, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }, null, null, '精准: 直线射击3格内的敌人(不可越子)。', { type: 'line', len: 3 });
 D('liannu', '连弩手', '矢', 3, 'back2', 1, 1, 4.5, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }, null, null, '连射: 直线射击3格,每回合可攻击两个目标(各一次)。', { type: 'line', len: 3, multi: 2 });
 D('huochong', '火铳手', '铳', 2, 'back2', 1, 1, 3, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }, [{ id: 'qiCapture', n: 2 }], null, '火铳: 直射2格;击杀敌人+2气力。', { type: 'line', len: 2 });
@@ -118,21 +118,20 @@ D('machao', '马超', '超', 4, 'back3', 2, 1, 8, { t: 'horse', noLeg: 1 }, [{ i
 D('dianwei', '典韦', '韦', 3, 'back2', 3, 1, 6, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]] }, [{ id: 'auraDef', n: 1 }], [{ id: 'attackAdj', cd: 5, cost: 0, p: { dmg: 2, n: 99 } }], '铁壁: 相邻友军受伤害-1;恶来: 对所有相邻敌人造成2点伤害。');
 D('xuchu', '许褚', '褚', 3, 'back2', 3, 1, 6, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]] }, [{ id: 'thorns', n: 1 }], [{ id: 'buffSelf', cd: 8, cost: 0, p: { n: 2 } }], '虎痴: 攻击它的敌人反受1点伤害;裸衣: 本场伤害+2。');
 D('diaochan', '貂蝉', '蝉', 4, 'back2', 1, 1, 7, { t: 'steps', s: [[-1, -1], [-1, 1], [1, -1], [1, 1]] }, [{ id: 'auraCharm' }], [{ id: 'stunTarget', cd: 8, cost: 0, p: { dist: 3, turns: 2 } }], '魅惑: 相邻敌人伤害-1且无法使用技能;离间: 3格内一名敌人眩晕2回合。');
-D('daji', '妲己', '妲', 3, 'back2', 1, 1, 6, { t: 'steps', s: [[-1, -1], [-1, 1], [1, -1], [1, 1]] }, [{ id: 'auraWeaken' }], [{ id: 'stunAdj', cd: 5, cost: 0, p: { turns: 1 } }], '狐魅: 相邻敌人伤害-1;倾城: 眩晕相邻敌人1回合。');
+D('daji', '妲己', '妲', 4, 'back2', 1, 1, 7, { t: 'steps', s: [[-1, -1], [-1, 1], [1, -1], [1, 1]] }, [{ id: 'auraWeaken', toZero: 1 }], [{ id: 'stunAdj', cd: 5, cost: 0, p: { turns: 1 } }], '狐魅: 相邻敌人造成的伤害可为0(削至0);倾城: 眩晕相邻敌人1回合。');
 D('mulan', '木兰', '兰', 3, 'back3', 1, 1, 6.5, { t: 'union', m: [{ t: 'horse', noLeg: 1 }, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }] }, [{ id: 'auraAtk', scope: 2, n: 1 }], [{ id: 'buffSelf', cd: 6, cost: 0, p: { n: 1 } }], '巾帼: 2格内友军伤害+1;从军: 本场自身伤害+1。');
 D('muguiying', '穆桂英', '穆', 3, 'back3', 1, 1, 6.5, { t: 'chariot' }, null, [{ id: 'aoeBox', cd: 6, cost: 2, p: { dist: 3, size: 3, dmg: 2 } }], '破天门阵: 3格内任选中心,3×3范围2点伤害。');
 D('baiqi', '白起', '起', 4, 'back3', 2, 1, 8, { t: 'cannon' }, [{ id: 'onCapture', type: 'healSelf', n: 1 }, { id: 'qiCapture', n: 1 }], [{ id: 'snipe', cd: 4, cost: 0, p: { dist: 2, dmg: 2 } }], '杀神: 吃子回复1点生命并+1气力;人屠: 2格内任一敌人受2点伤害。');
 
 /* ---------------- 凡品补强(基础兵种) ---------------- */
 D('yima', '驿马', '驿', 1, 'back3', 1, 1, 3.2, { t: 'horse' }, [{ id: 'qiStart', n: 1 }], null, '驿传: 开战时气力+1,日字驰骋。');
-D('tanma', '探马', '探', 1, 'back3', 1, 1, 3.4, { t: 'horse' }, null, null, '军前侦骑: 日字纵横,来去如风。');
 D('qingche', '轻车', '轻', 1, 'back3', 1, 1, 5.5, { t: 'chariot' }, null, null, '轻装战车: 纵横任意驰骋,无坚不摧。');
 D('shipao', '石炮', '石', 1, 'back3', 1, 1, 4.2, { t: 'cannon', screens: 1 }, null, null, '投石机: 规则同炮,隔一子轰击。');
 D('huobing', '伙兵', '伙', 1, 'river', 1, 1, 1.8, { t: 'pawn' }, [{ id: 'onCapture', type: 'qi', n: 1 }], null, '伙夫: 缴获敌粮,吃子+1气力。');
 D('xianfeng', '先锋', '先', 1, 'back3', 1, 1, 2.8, { t: 'pawn' }, [{ id: 'dmgBonus', n: 1 }], null, '陷阵: 攻击伤害+1。');
 D('minfu', '民夫', '民', 1, 'river', 1, 1, 1.8, { t: 'pawn' }, [{ id: 'onDeath', type: 'healAllies', n: 1 }], null, '民夫: 阵亡时全体友军回复1点生命。');
 D('yongshi', '勇士', '勇', 1, 'river', 1, 1, 2.5, { t: 'pawn' }, [{ id: 'thorns', n: 1 }], null, '视死如归: 攻击它的敌人反受1点伤害。');
-D('duandao', '短刀手', '短', 1, 'ownHalf', 1, 1, 2.2, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }, null, null, '近身搏杀: 横直一步。');
+D('duandao', '短刀手', '短', 1, 'ownHalf', 1, 1, 2.4, { t: 'charger', len: 2 }, null, null, '疾斩: 可直线行走/吃两格内的目标(不可越子)。');
 D('changmao', '长矛手', '矛', 1, 'ownHalf', 1, 1, 2.0, { t: 'steps', s: [[-1, 0], [-1, -1], [-1, 1]] }, null, null, '长矛: 只进不退,向前三向刺击一步。');
 D('jibing', '戟兵', '戟', 1, 'ownHalf', 1, 1, 2.4, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]] }, null, null, '长戟: 八面行走一步。');
 D('biaoshi', '镖师', '镖', 1, 'back2', 1, 1, 2.6, { t: 'steps', s: [[-1, 0], [1, 0], [0, -1], [0, 1]] }, null, [{ id: 'snipe', cd: 3, cost: 0, p: { dist: 2, dmg: 1 } }], '飞镖: 2格内任一敌人受1点伤害。');

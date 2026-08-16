@@ -182,7 +182,69 @@ console.log('== 规则单测 ==');
   assert(tg.includes(t1) && tg.includes(t2), '弓手直线2格');
   assert(!tg.includes(t3), '弓手不能射斜');
   const t4 = makePiece('s_bing', BLACK); placeAt(b, 5, 3, t4);
-  assert(!genRangedTargets(b, p).includes(t1), '弓手不可越子');
+  assert(genRangedTargets(b, p).includes(t1), '弓手可越子(隔子仍射中)');
+}
+{
+  /* 弓手移动: 直线2格,不可越子、不可吃 */
+  const b = newBoard();
+  const p = makePiece('gongshou', RED); placeAt(b, 8, 4, p);
+  const enemy = makePiece('s_bing', BLACK); placeAt(b, 8, 1, enemy);
+  const battle = mkBattle(b);
+  const ms = genLegalMoves(b, p, { battle });
+  assert(ms.some(m => m.r === 7 && m.c === 4) && ms.some(m => m.r === 6 && m.c === 4), '弓手可直线走2格');
+  const cap = ms.filter(m => m.cap);
+  assert(cap.length === 0, '弓手移动不可吃子');
+  const b2 = newBoard();
+  const p2 = makePiece('gongshou', RED); placeAt(b2, 8, 4, p2);
+  const block = makePiece('s_bing', RED); placeAt(b2, 8, 3, block);
+  const battle2 = mkBattle(b2);
+  assert(!genLegalMoves(b2, p2, { battle2 }).some(m => m.c === 1 || m.c === 2), '弓手移动不可越子');
+}
+{
+  /* 短刀手: 直线2格,可吃首敌,不可越子 */
+  const b = newBoard();
+  const p = makePiece('duandao', RED); placeAt(b, 8, 4, p);
+  const t = makePiece('s_bing', BLACK); placeAt(b, 8, 2, t);
+  const battle = mkBattle(b);
+  const ms = genLegalMoves(b, p, { battle });
+  assert(ms.some(m => m.r === 8 && m.c === 2 && m.cap), '短刀手可直吃2格内目标');
+  assert(ms.some(m => m.r === 8 && m.c === 3 && !m.cap), '短刀手可空走1格');
+  const b2 = newBoard();
+  const p2 = makePiece('duandao', RED); placeAt(b2, 8, 4, p2);
+  const block = makePiece('s_bing', RED); placeAt(b2, 8, 3, block);
+  const t2 = makePiece('s_bing', BLACK); placeAt(b2, 8, 2, t2);
+  const battle2 = mkBattle(b2);
+  assert(!genLegalMoves(b2, p2, { battle2 }).some(m => m.cap), '短刀手不可越子');
+}
+{
+  /* 天马2生命 */
+  const p = makePiece('tianma', RED);
+  assert(p.maxHp === 2 && p.hp === 2, '天马2生命');
+}
+{
+  /* 妲己狐魅可把相邻敌人伤害削到0 */
+  const b = newBoard();
+  const jin = makePiece('daji', RED); placeAt(b, 5, 4, jin);
+  const atk = makePiece('s_ju', BLACK); placeAt(b, 5, 5, atk); /* 相邻 */
+  const t = makePiece('s_shi', RED); placeAt(b, 4, 5, t);
+  const battle = mkBattle(b);
+  dealDamage(b, t, 1, { source: atk, isSkill: false, battle });
+  assert(t.hp === 1, '妲己狐魅把相邻敌人1点伤害削到0');
+}
+{
+  /* 神炮: 可如车直取首敌,亦可如同炮隔一架轰击 */
+  const b = newBoard();
+  const p = makePiece('shenpao', RED); placeAt(b, 5, 4, p);
+  const t1 = makePiece('s_bing', BLACK); placeAt(b, 5, 0, t1);
+  const battle = mkBattle(b);
+  assert(genLegalMoves(b, p, { battle }).some(m => m.cap && m.target === t1), '神炮可当车直取首敌');
+  const b2 = newBoard();
+  const p2 = makePiece('shenpao', RED); placeAt(b2, 5, 4, p2);
+  const scr = makePiece('s_bing', RED); placeAt(b2, 5, 3, scr); /* 炮架(己方亦可) */
+  const t2 = makePiece('s_ma', BLACK); placeAt(b2, 5, 1, t2);
+  const battle2 = mkBattle(b2);
+  assert(genLegalMoves(b2, p2, { battle2 }).some(m => m.cap && m.target === t2), '神炮可如炮隔一架轰击');
+  assert(P_DEFS['shenpao'].mv.m.some(s => s.t === 'cannon') && P_DEFS['shenpao'].mv.m.some(s => s.t === 'chariot'), '神炮为车炮双模');
 }
 {
   const b = newBoard();

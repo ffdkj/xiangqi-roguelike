@@ -44,6 +44,7 @@ function moveLabel(def) {
       const diag = mv.s.some(o => o[0] !== 0 && o[1] !== 0);
       return '一步·' + (diag ? '八面' : '横直') + (mv.palace ? '·限宫内' : '');
     }
+    case 'charger': return '直线' + (mv.len || 2) + '格' + (mv.noCap ? '(不可吃/越子)' : '(可吃首敌,不可越子)');
     case 'leap': return mv.s === 'any2' ? '二格跳跃·任意方向' : '直跳两格';
     case 'fly': return '全盘飞行(不食将)';
     case 'union': return mv.m.map(m => moveLabel({ mv: m })).join(' / ');
@@ -82,7 +83,7 @@ function pasLabel(p) {
       if (p.type === 'extraMove') return '吃子后可再动' + p.n + '次';
       return '吃子效果';
     case 'auraCharm': return '魅惑: 相邻敌伤害-1且无法使用技能';
-    case 'auraWeaken': return '狐魅: 相邻敌伤害-1';
+    case 'auraWeaken': return '狐魅: 相邻敌' + (p.toZero ? '伤害可削至0' : '伤害-1');
     case 'rageAllyDeath': return '友军阵亡时本场伤害+' + p.n;
     case 'infiltrate': return '无间: 前' + p.turns + '回合敌方不可吃它';
     case 'auraCleanse': return '每回合解除相邻友军眩晕/中毒';

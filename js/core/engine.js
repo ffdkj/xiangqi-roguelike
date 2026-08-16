@@ -257,6 +257,25 @@ function collectMoves(board, piece, mv, out) {
       }
       break;
     }
+    case 'charger': {
+      /* 直线至多走 len 格: noCap=纯移动(不可吃、不可越子); 否则可吃首个敌人(不可越子) */
+      const L = mv.len || 2;
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      for (const [dr, dc] of dirs) {
+        let rr = r + dr, cc = c + dc;
+        for (let i = 0; i < L; i++) {
+          if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) break;
+          const cell = board.grid[rr][cc];
+          if (cell) {
+            if (!mv.noCap && cell.side !== side) push(rr, cc, true);
+            break;
+          }
+          push(rr, cc, false);
+          rr += dr; cc += dc;
+        }
+      }
+      break;
+    }
     case 'leap': {
       let offs = mv.s;
       if (offs === 'any2') {
@@ -410,9 +429,16 @@ function dealDamage(board, target, amount, opts) {
     /* 魅惑/削弱: 攻击者身旁的貂蝉/妲己 */
     if (src && !src.dead && dmg > 0) {
       const charm = adjacentPieces(board, src.r, src.c, src.side === RED ? BLACK : RED, 1);
+      let weakenToZero = false;
       for (const ch of charm) {
-        if (hasPas(ch, 'auraCharm') || hasPas(ch, 'auraWeaken')) dmg = Math.max(1, dmg - 1);
+        if (hasPas(ch, 'auraCharm')) dmg = Math.max(1, dmg - 1);
+        else if (hasPas(ch, 'auraWeaken')) {
+          const wk = getPas(ch, 'auraWeaken');
+          if (wk && wk.toZero) weakenToZero = true;
+          dmg = Math.max(1, dmg - 1);
+        }
       }
+      if (weakenToZero) dmg = 0; /* 妲己狐魅可把伤害削到0 */
     }
   }
   /* 先手(刺客) */
