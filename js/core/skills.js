@@ -291,6 +291,7 @@ const SKILLS = {
 function skillReady(battle, piece, idx) {
   const act = piece.def.act[idx];
   if (!act) return { ok: false, reason: '' };
+  if (piece.movedThisTurn) return { ok: false, reason: '本回合已行动过,不能再使用技能' };
   if (battle.skillUsed[piece.side]) return { ok: false, reason: '本回合已使用过技能' };
   if ((piece.cdLeft[idx] || 0) > 0) return { ok: false, reason: '冷却中(剩' + piece.cdLeft[idx] + '回合)' };
   const used = piece.usesLeft[idx] == null ? 0 : (act.uses || 0) - (piece.usesLeft[idx] || 0);
@@ -324,6 +325,7 @@ function skillUse(battle, piece, idx, target) {
   texts.push(...(Array.isArray(res) ? res : [res]));
   if (act.cost) { battle.qi[piece.side] -= act.cost; texts.push('消耗' + act.cost + '气力'); }
   battle.skillUsed[piece.side] = true;
+  piece.skilledThisTurn = true;
   piece.cdLeft[idx] = (piece.cdOverride && piece.cdOverride[idx]) || (act.cd || 1);
   if (act.uses) {
     const used = (act.uses) - (piece.usesLeft[idx] == null ? act.uses : piece.usesLeft[idx]);

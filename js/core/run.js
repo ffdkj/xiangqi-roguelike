@@ -271,9 +271,14 @@ function startAmbush(p) {
 
 /* 玩家行动 */
 function playerMove(battle, piece, m) {
+  if (piece.skilledThisTurn) {
+    logBattle(battle, piece.name + '本回合已使用过技能,不能再行动');
+    return { captured: [], bounced: false, texts: ['本回合已使用过技能,不能再行动'], winByCapture: false };
+  }
   const from = [piece.r, piece.c];
   const ev = applyMove(battle.board, piece, m, battle);
   battle.movedDone[RED] = true;
+  piece.movedThisTurn = true;
   const cap = ev.captured.length ? '吃' + ev.captured.map(x => x.name).join('、') : '';
   logBattle(battle, SIDE_NAME[RED] + '·' + piece.name + ' (' + (from[1] + 1) + ',' + (from[0] + 1) + ')→(' + (m.c + 1) + ',' + (m.r + 1) + ') ' + cap + (ev.texts.length ? ' [' + ev.texts.join(';') + ']' : ''));
   if (ev.captured.length) runWinCheck(battle);
@@ -281,8 +286,13 @@ function playerMove(battle, piece, m) {
   return ev;
 }
 function playerRanged(battle, piece, target) {
+  if (piece.skilledThisTurn) {
+    logBattle(battle, piece.name + '本回合已使用过技能,不能再行动');
+    return { killed: false, texts: ['本回合已使用过技能,不能再行动'] };
+  }
   const ev = performRangedAttack(battle.board, piece, target, battle);
   battle.movedDone[RED] = true;
+  piece.movedThisTurn = true;
   logBattle(battle, SIDE_NAME[RED] + '·' + piece.name + '远程攻击' + target.name + ': ' + ev.texts.join(';'));
   if (ev.killed) runWinCheck(battle);
   if (generalCaptured(battle.board, RED)) finishBattle(battle, BLACK);
@@ -540,6 +550,7 @@ function sweepRoster(battle) {
     p.atkBoost = 0; p.rage = 0;
     p.firstStrikeUsed = false; p.rebornUsed = false;
     p.cdLeft = {}; p.usesLeft = {}; p.attacksLeft = 0;
+    p.movedThisTurn = false; p.skilledThisTurn = false;
   }
 }
 

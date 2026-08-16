@@ -69,7 +69,7 @@ function chooseAction(battle) {
   let best = null;
   const candidates = [];
   for (const p of alivePieces(battle.board, BLACK)) {
-    if (p.status.stun > 0) continue;
+    if (p.status.stun > 0 || p.skilledThisTurn) continue; /* 放过技能的棋子不能再动 */
     for (const m of genLegalMoves(battle.board, p, { battle })) {
       const sc = scoreMove(battle, p, m);
       candidates.push({ kind: 'move', piece: p, m, score: sc });
@@ -217,11 +217,13 @@ async function enemyTurn(battle) {
     if (action.kind === 'move') {
       const from = [action.piece.r, action.piece.c];
       const ev = applyMove(battle.board, action.piece, action.m, battle);
+      action.piece.movedThisTurn = true;
       const cap = ev.captured.length ? '吃' + ev.captured.map(x => x.name).join('、') : '';
       logBattle(battle, SIDE_NAME[BLACK] + '·' + action.piece.name + ' (' + (from[1] + 1) + ',' + (from[0] + 1) + ')→(' + (action.m.c + 1) + ',' + (action.m.r + 1) + ') ' + cap + (ev.texts.length ? ' [' + ev.texts.join(';') + ']' : ''));
       if (generalCaptured(battle.board, RED)) { battle.over = true; battle.winner = BLACK; battle.reason = 'capture'; break; }
     } else {
       const ev = performRangedAttack(battle.board, action.piece, action.target, battle);
+      action.piece.movedThisTurn = true;
       logBattle(battle, SIDE_NAME[BLACK] + '·' + action.piece.name + '远程攻击' + action.target.name + ': ' + ev.texts.join(';'));
       if (generalCaptured(battle.board, RED)) { battle.over = true; battle.winner = BLACK; battle.reason = 'capture'; break; }
     }

@@ -11,7 +11,7 @@ const files = [
 let code = files.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n;\n');
 /* 测试提速: 缩短AI演出延迟 */
 code = code.replace(/await sleep\(420\)/g, 'await sleep(3)');
-code += '\n;module.exports = { RED, BLACK, newBoard, placeAt, makePiece, genLegalMoves, genRangedTargets, isInCheck, sideHasLegalMoves, generalsFace, applyMove, skillUse, startSideTurn, alivePieces, hasPas, Flow, startGame, playerSkill, playerRanged, playerMove, playerEndTurn, skillReady, skillTargets, getRun: () => Run, setRun: r => { Run = r; }, P_DEFS, DRAFT_POOL, battleTick, startBattle, defaultDeploy, makeRun, enemyArmySpec, zoneSquares, sideGeneral, attackPower, dealDamage, rarityWeights, weightedRarity, EVENTS, pickEvent, execFx, runEventFx, saveRun, loadSave, clearSave, hasSave, continueGame, applyCard, CONSUMABLES, randomPieceIdShift, maxRarityFor, rollDraft };\n';
+code += '\n;module.exports = { RED, BLACK, newBoard, placeAt, makePiece, genLegalMoves, genRangedTargets, isInCheck, sideHasLegalMoves, generalsFace, applyMove, skillUse, startSideTurn, endSideTurn, alivePieces, hasPas, Flow, startGame, playerSkill, playerRanged, playerMove, playerEndTurn, skillReady, skillTargets, getRun: () => Run, setRun: r => { Run = r; }, P_DEFS, DRAFT_POOL, battleTick, startBattle, defaultDeploy, makeRun, enemyArmySpec, zoneSquares, sideGeneral, attackPower, dealDamage, rarityWeights, weightedRarity, EVENTS, pickEvent, execFx, runEventFx, saveRun, loadSave, clearSave, hasSave, continueGame, applyCard, CONSUMABLES, randomPieceIdShift, maxRarityFor, rollDraft };\n';
 const out = path.join(__dirname, '_combined.cjs');
 fs.writeFileSync(out, code);
 const G = require(out);
@@ -288,6 +288,39 @@ console.log('== 规则单测 ==');
   /* 平衡: 飞刀兵冷却3回合; 后羿射日伤害1 */
   assert(P_DEFS.feidao.act[0].cd === 3, '飞刀兵冷却3回合');
   assert(P_DEFS.houyi.attack.dmg === 1, '后羿射日伤害1');
+}
+{
+  /* 同一棋子一回合不能「走步/远程」+「放技能」 */
+  const b = newBoard();
+  placeAt(b, 9, 4, makePiece('s_jiang', RED));
+  placeAt(b, 0, 4, makePiece('s_jiang', BLACK));
+  const zy = makePiece('zhouyu', RED); placeAt(b, 5, 4, zy);
+  const t = makePiece('s_bing', BLACK); placeAt(b, 5, 0, t);
+  const battle = mkBattle(b);
+  battle.qi.red = 5;
+  /* 周瑜走一步后不能再放技能 */
+  const m = genLegalMoves(b, zy, { battle }).find(x => !x.cap);
+  playerMove(battle, zy, m);
+  assert(zy.movedThisTurn === true, '走子后标记已行动');
+  assert(!skillReady(battle, zy, 0).ok, '已走子不能再放技能');
+  const res = playerSkill(battle, zy, 0, { r: 5, c: 2 });
+  assert(!res.ok, 'playerSkill 拒绝已行动棋子');
+  /* 另一棋子仍可放技能 */
+  const lg = makePiece('leigong', RED); placeAt(b, 6, 4, lg);
+  const res2 = playerSkill(battle, lg, 0, t);
+  assert(res2.ok && lg.skilledThisTurn === true, '其他棋子仍可放技能');
+  /* 放过技能的棋子不能再走 */
+  const mq = genLegalMoves(b, lg, { battle }).find(x => !x.cap);
+  playerMove(battle, lg, mq);
+  assert(lg.r === 6 && lg.c === 4, '放过技能的棋子不能再走');
+  /* 远程同样受限 */
+  const t2 = makePiece('s_bing', BLACK); placeAt(b, 8, 6, t2);
+  const gs = makePiece('gongshou', RED); placeAt(b, 8, 8, gs);
+  playerRanged(battle, gs, t2);
+  assert(gs.movedThisTurn === true, '远程攻击后标记已行动');
+  /* 回合切换后标记复位 */
+  endSideTurn(battle);
+  assert(zy.movedThisTurn === false && lg.skilledThisTurn === false && gs.movedThisTurn === false, '回合切换后标记复位');
 }
 {
   const b = newBoard();

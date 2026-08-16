@@ -401,6 +401,11 @@ function battleClick(r, c) {
   }
   /* 选中己方棋子 */
   if (piece && piece.side === RED && piece.status.stun === 0) {
+    if (piece.skilledThisTurn) {
+      toast(piece.name + '本回合已使用过技能,不能再行动');
+      UI.sel = null; refresh();
+      return;
+    }
     UI.inspect = null; UI.inspectMoves = []; UI.inspectTargets = [];
     UI.sel = piece;
     UI.selMoves = genLegalMoves(b.board, piece, { battle: b });
@@ -510,7 +515,7 @@ function renderSidebar() {
     const canEnd = b.movedDone[RED] || b.skillUsed[RED];
     let hint;
     if (!b.movedDone[RED]) {
-      hint = b.skillUsed[RED] ? '技能已用,还可走一步(或直接结束回合)' : '请行动: 走一步或使用技能';
+      hint = b.skillUsed[RED] ? '技能已用,还可走一步(或直接结束回合)' : '请行动: 走一步或使用技能(同一棋子二者只能择一)';
     } else if (b.extraMoves[RED] > 0) {
       hint = '再动剩余 ' + b.extraMoves[RED] + ' 次 — 可继续行动,或结束回合';
     } else {
@@ -950,7 +955,7 @@ function showHelp() {
     <h3>存档与继续</h3>
     <p>进度自动保存(单栏位): 每次进入部署时自动存档;战斗中可点「保存退出」,下次从主菜单「继续征战」接着打(本场战斗从头再战,战斗中已阵亡的棋子计入阵亡)。<b>战败或通关后存档清除</b>。结算弹窗不可点外关闭,请用弹窗内按钮返回。</p>
     <h3>回合流程</h3>
-    <p>每回合<b>至多走一步 + 使用一次主动技能</b>(技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动;吃子触发「再动」类被动时可获得有限次数的额外行动。</p>
+    <p>每回合<b>至多走一步 + 使用一次主动技能</b>,且<b>同一棋子一回合只能「移动/远程」或「放技能」,不可兼得</b>(吃子触发的「再动」仍算同一步的延续;技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动。</p>
     <h3>生命与远程</h3>
     <p>生命超过1的棋子被吃时先扣血,攻击者被弹回原地;远程棋子可原地射击,不移动自身。</p>
     <h3>部署</h3>

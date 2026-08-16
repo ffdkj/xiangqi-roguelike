@@ -44,6 +44,8 @@ function makePiece(defId, side, opts) {
     cdLeft: {}, usesLeft: {}, temp: !!opts.temp,
     isGeneral: !!def.isGeneral, isBoss: !!def.isBoss,
     attacksLeft: 0,
+    /* 同棋子一回合只能「走步/远程」或「放技能」,二者不可兼得 */
+    movedThisTurn: false, skilledThisTurn: false,
     r: -1, c: -1, dead: false
   };
 }
@@ -677,8 +679,12 @@ function endSideTurn(battle) {
   battle.extraMoves[battle.turn] = 0;
   battle.skillUsed[battle.turn] = false;
   battle.movedDone[battle.turn] = false;
-  /* 远程连弩计数复位 */
-  for (const p of alivePieces(battle.board, battle.turn)) p.attacksLeft = 0;
+  /* 远程连弩计数复位; 每回合「走步/技能」标记复位 */
+  for (const p of alivePieces(battle.board, battle.turn)) {
+    p.attacksLeft = 0;
+    p.movedThisTurn = false;
+    p.skilledThisTurn = false;
+  }
   startSideTurn(battle, battle.turn === RED ? BLACK : RED);
 }
 
