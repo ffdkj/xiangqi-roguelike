@@ -284,7 +284,7 @@ function genRangedTargets(board, piece) {
   if (!atk || piece.dead || piece.status.stun > 0) return out;
   const foes = alivePieces(board, piece.side === RED ? BLACK : RED);
   for (const e of foes) {
-    if (e.isGeneral) continue; /* 远程不可锁定帅将 */
+    if (e.isGeneral && !e.isBoss) continue; /* 远程不可锁定帅将(最终Boss除外) */
     if (atk.type === 'any') { out.push(e); continue; }
     if (atk.type === 'box') {
       if (Math.max(Math.abs(e.r - piece.r), Math.abs(e.c - piece.c)) <= atk.dist) out.push(e);

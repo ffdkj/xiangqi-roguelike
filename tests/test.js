@@ -257,6 +257,39 @@ console.log('== 规则单测 ==');
   assert(res.ok && !g.dead && t1.dead && p.r === 8 && p.c === 4, '冲杀停于将帅之前');
 }
 {
+  /* 最终Boss可被技能/远程影响,普通将帅仍不可 */
+  const b = newBoard();
+  const boss = makePiece('chiyou', BLACK); placeAt(b, 0, 4, boss);
+  const ju = makePiece('s_ju', BLACK); placeAt(b, 0, 0, ju);
+  const gB = makePiece('s_jiang', BLACK); placeAt(b, 2, 8, gB);
+  const battle = mkBattle(b);
+  battle.qi.red = 10;
+  /* 天雷(snipeAny)可锁Boss,不可锁将 */
+  const lg = makePiece('leigong', RED); placeAt(b, 5, 4, lg);
+  const tg = skillTargets(lg, battle, lg.def.act[0]);
+  assert(tg.includes(boss) && !tg.includes(gB), '天雷可锁最终Boss,不可锁将');
+  /* 狙击(snipe)可锁Boss */
+  const fd = makePiece('feidao', RED); placeAt(b, 2, 4, fd);
+  const tg2 = skillTargets(fd, battle, fd.def.act[0]);
+  assert(tg2.includes(boss), '飞刀可锁最终Boss');
+  /* 范围轰击可伤Boss */
+  const hy = makePiece('hongyi', RED); placeAt(b, 3, 4, hy);
+  const res = skillUse(battle, hy, 0, { r: 0, c: 4 });
+  assert(res.ok && boss.hp === 7, '范围技能对最终Boss造成伤害');
+  /* 蚩尤免疫眩晕: 定身不可锁 */
+  const dao = makePiece('daoshi', RED); placeAt(b, 2, 5, dao);
+  assert(!skillTargets(dao, battle, dao.def.act[0]).includes(boss), '蚩尤免疫眩晕不可定身');
+  /* 远程可射击Boss,不可射击将 */
+  const hy2 = makePiece('houyi', RED); placeAt(b, 9, 4, hy2);
+  const rt = genRangedTargets(b, hy2);
+  assert(rt.includes(boss) && !rt.includes(gB), '远程可射Boss,不可射将');
+}
+{
+  /* 平衡: 飞刀兵冷却3回合; 后羿射日伤害1 */
+  assert(P_DEFS.feidao.act[0].cd === 3, '飞刀兵冷却3回合');
+  assert(P_DEFS.houyi.attack.dmg === 1, '后羿射日伤害1');
+}
+{
   const b = newBoard();
   const p = makePiece('erlang', RED); placeAt(b, 5, 4, p);
   const battle = mkBattle(b);
@@ -532,13 +565,15 @@ async function driveRed(battle) {
   const active = mine.filter(p => genLegalMoves(battle.board, p, { battle }).length > 0 || genRangedTargets(battle.board, p).length > 0);
   if (!active.length) return;
   const p = active[Math.floor(Math.random() * active.length)];
+  const ms = genLegalMoves(battle.board, p, { battle });
   const rt = genRangedTargets(battle.board, p);
-  if (rt.length && Math.random() < 0.35) {
+  if (rt.length && (ms.length === 0 || Math.random() < 0.35)) {
     playerRanged(battle, p, rt[Math.floor(Math.random() * rt.length)]);
-  } else {
-    const ms = genLegalMoves(battle.board, p, { battle });
+  } else if (ms.length) {
     const m = ms[Math.floor(Math.random() * ms.length)];
     playerMove(battle, p, m);
+  } else {
+    return;
   }
   if (!battle.over) playerEndTurn(battle);
 }

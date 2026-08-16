@@ -93,7 +93,7 @@ function atkLabel(piece) {
   let t = '';
   if (piece.def.attack) {
     const a = piece.def.attack;
-    if (a.type === 'any') t = '可射击全场(帅将除外)';
+    if (a.type === 'any') t = '可射击全场(将帅除外,可狙最终Boss)' + (a.dmg ? '·伤害' + a.dmg : '');
     else if (a.type === 'line') t = '可直射' + a.len + '格' + (a.jump ? '(可越子)' : '') + (a.multi ? '·每回合' + a.multi + '次' : '');
     else if (a.type === 'box') t = '可原地射击' + a.dist + '格内';
   }

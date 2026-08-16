@@ -34,19 +34,19 @@ const SKILLS = {
   snipe: {
     need: 'enemy', dist: 3, name: '狙击',
     info: '对{dist}格内任一敌人造成{dmg}点伤害',
-    targets(piece, battle, p) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => !t.isGeneral && Math.max(Math.abs(t.r - piece.r), Math.abs(t.c - piece.c)) <= (p.dist || 99)); },
+    targets(piece, battle, p) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => (t.isBoss || !t.isGeneral) && Math.max(Math.abs(t.r - piece.r), Math.abs(t.c - piece.c)) <= (p.dist || 99)); },
     apply(piece, battle, p, t) { return dealDamage(battle.board, t, p.dmg, { source: piece, isSkill: true, battle }).texts; }
   },
   snipeLine: {
     need: 'enemy', dist: 99, name: '天雷/拖刀',
     info: '对同线任一敌人造成{dmg}点伤害',
-    targets(piece, battle) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => !t.isGeneral && (t.r === piece.r || t.c === piece.c)); },
+    targets(piece, battle) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => (t.isBoss || !t.isGeneral) && (t.r === piece.r || t.c === piece.c)); },
     apply(piece, battle, p, t) { return dealDamage(battle.board, t, p.dmg, { source: piece, isSkill: true, battle }).texts; }
   },
   snipeAny: {
     need: 'enemy', dist: 99, name: '天雷',
     info: '对场上任意敌人造成{dmg}点伤害',
-    targets(piece, battle) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => !t.isGeneral); },
+    targets(piece, battle) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => t.isBoss || !t.isGeneral); },
     apply(piece, battle, p, t) { return dealDamage(battle.board, t, p.dmg, { source: piece, isSkill: true, battle }).texts; }
   },
   aoeBox: {
@@ -64,7 +64,7 @@ const SKILLS = {
       const lo = -Math.floor((p.size - 1) / 2), hi = Math.ceil((p.size - 1) / 2);
       const texts = [];
       for (const f of alivePieces(battle.board, piece.side === RED ? BLACK : RED)) {
-        if (f.isGeneral) continue;
+        if (f.isGeneral && !f.isBoss) continue;
         const dr = f.r - sq.r, dc = f.c - sq.c;
         if (dr >= lo && dr <= hi && dc >= lo && dc <= hi) {
           texts.push(...dealDamage(battle.board, f, p.dmg, { source: piece, isSkill: true, battle }).texts);
@@ -76,11 +76,11 @@ const SKILLS = {
   lineDamage: {
     need: 'enemy', dist: 99, name: '纵列轰击',
     info: '对目标所在纵列所有敌人造成{dmg}点伤害',
-    targets(piece, battle) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => !t.isGeneral); },
+    targets(piece, battle) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => t.isBoss || !t.isGeneral); },
     apply(piece, battle, p, t) {
       const texts = [];
       for (const f of alivePieces(battle.board, piece.side === RED ? BLACK : RED)) {
-        if (f.isGeneral) continue;
+        if (f.isGeneral && !f.isBoss) continue;
         if (f.c === t.c) texts.push(...dealDamage(battle.board, f, p.dmg, { source: piece, isSkill: true, battle }).texts);
       }
       return texts.length ? texts : ['纵列空无一人'];
@@ -90,7 +90,7 @@ const SKILLS = {
   stunTarget: {
     need: 'enemy', dist: 3, name: '定身',
     info: '令{dist}格内一名敌人眩晕{turns}回合',
-    targets(piece, battle, p) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => !t.isGeneral && !hasPas(t, 'stunImmune') && Math.max(Math.abs(t.r - piece.r), Math.abs(t.c - piece.c)) <= (p.dist || 99)); },
+    targets(piece, battle, p) { return alivePieces(battle.board, piece.side === RED ? BLACK : RED).filter(t => (t.isBoss || !t.isGeneral) && !hasPas(t, 'stunImmune') && Math.max(Math.abs(t.r - piece.r), Math.abs(t.c - piece.c)) <= (p.dist || 99)); },
     apply(piece, battle, p, t) { t.status.stun = Math.max(t.status.stun, p.turns); return [t.name + '被眩晕' + p.turns + '回合']; }
   },
   stunAdj: {
@@ -100,7 +100,7 @@ const SKILLS = {
       const foes = adjacentPieces(battle.board, piece.r, piece.c, piece.side === RED ? BLACK : RED, 1);
       let n = 0;
       for (const f of foes) {
-        if (f.isGeneral || hasPas(f, 'stunImmune')) continue;
+        if ((f.isGeneral && !f.isBoss) || hasPas(f, 'stunImmune')) continue;
         f.status.stun = Math.max(f.status.stun, p.turns); n++;
       }
       return [n ? '眩晕了' + n + '名相邻敌人' : '身旁无敌可眩'];
@@ -245,7 +245,7 @@ const SKILLS = {
     info: '对至多{n}名相邻敌人各造成{dmg}点伤害',
     apply(piece, battle, p) {
       const foes = adjacentPieces(battle.board, piece.r, piece.c, piece.side === RED ? BLACK : RED, 1)
-        .filter(f => !f.isGeneral).sort((a, b) => b.def.val - a.def.val).slice(0, p.n || 99);
+        .filter(f => !f.isGeneral || f.isBoss).sort((a, b) => b.def.val - a.def.val).slice(0, p.n || 99);
       const texts = [];
       for (const f of foes) texts.push(...dealDamage(battle.board, f, p.dmg, { source: piece, isSkill: true, battle }).texts);
       return texts.length ? texts : ['身旁无敌'];
