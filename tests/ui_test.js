@@ -18,7 +18,7 @@ const files = [
 let code = files.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n;\n');
 code = code.replace(/await sleep\(420\)/g, 'await sleep(60)');
 /* 测试垫片: 暴露内部符号 */
-code += '\n;window.__X = { UI, boot, startGame, genLegalMoves, genRangedTargets, alivePieces, battleClick, refresh, finishBattle, RED, BLACK, MAX_DEPLOY, zoneSquares, skillTargets, skillUse, playerEndTurn, playerSkill, playerMove, playerRanged, getRun: () => Run, showEvent, showPickPieces, showPickGrave, showEventReward, backToMenu, refreshContinueBtn, saveRun, hasSave, clearSave, continueGame, EVENTS, CONSUMABLES, rollDraft, anyReadySkill, scheduleAutoEnd, cancelAutoEnd };\n';
+code += '\n;window.__X = { UI, boot, startGame, genLegalMoves, genRangedTargets, alivePieces, battleClick, refresh, finishBattle, RED, BLACK, MAX_DEPLOY, zoneSquares, skillTargets, skillUse, playerEndTurn, playerSkill, playerMove, playerRanged, getRun: () => Run, showEvent, showPickPieces, showPickGrave, showEventReward, backToMenu, refreshContinueBtn, saveRun, hasSave, clearSave, continueGame, EVENTS, CONSUMABLES, rollDraft, scheduleAutoEnd, cancelAutoEnd };\n';
 window.eval(code);
 window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 const X = window.__X;
@@ -126,11 +126,9 @@ const q = s => doc.querySelector(s);
     assert(X.UI.battle.turnNo >= 1, '至少完成一个回合');
     console.log('  模拟回合完成, turnNo=' + X.UI.battle.turnNo + ', 红方存活=' + X.UI.battle.playerPieces.filter(p => !p.dead).length);
 
-    /* 4.5 自动结束回合(0.5s延迟,无可用技能时走步后触发) */
+    /* 4.5 自动结束回合: 以走步为唯一参照,走完步0.5s后自动跳转(即使场上仍有可用技能) */
     if (X.UI.mode === 'battle' && !X.UI.battle.over && X.UI.battle.turn === X.RED) {
       const bb = X.UI.battle;
-      const saved = bb.playerPieces.map(p => [p, p.def.act]);
-      bb.playerPieces.forEach(p => { p.def.act = null; }); /* 屏蔽全部技能,保证"无可用技能"分支 */
       X.UI.autoEnd = true;
       const mp = X.alivePieces(bb.board, X.RED).find(p => p.status.stun === 0 && X.genLegalMoves(bb.board, p, { battle: bb }).some(m => !m.cap));
       if (mp) {
@@ -140,9 +138,8 @@ const q = s => doc.querySelector(s);
         await sleep(200);
         assert(bb.movedDone[X.RED] === true && bb.turn === X.RED, '0.5秒延迟内不跳转');
         await sleep(700);
-        assert(bb.movedDone[X.RED] === false, '延迟0.5秒后自动跳转敌军回合');
+        assert(bb.movedDone[X.RED] === false, '走完步延迟0.5秒后自动跳转敌军回合');
       }
-      saved.forEach(([p, act]) => { p.def.act = act; });
       X.UI.autoEnd = false;
       await sleep(500); /* 等敌方回合结束回到红方 */
     }

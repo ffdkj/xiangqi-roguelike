@@ -143,7 +143,7 @@ function buildShell() {
       <div class="top-right">
         <button class="btn btn-sm" id="btn-codex">图鉴</button>
         <button class="btn btn-sm" id="btn-help">帮助</button>
-        <button class="btn btn-sm on" id="btn-autoend" title="走步与技能都完成后延迟0.5秒自动结束回合;若场上无可用的技能,走步后即自动结束">⏭ 自动回合:开</button>
+        <button class="btn btn-sm on" id="btn-autoend" title="走完步延迟0.5秒自动结束回合(建议先放技能再走子)">⏭ 自动回合:开</button>
         <button class="btn btn-sm" id="btn-savequit">保存退出</button>
         <button class="btn btn-sm btn-danger" id="btn-surrender">认输</button>
       </div>
@@ -172,7 +172,7 @@ function buildShell() {
     UI.autoEnd = !UI.autoEnd;
     try { localStorage.setItem('chuhan_autoend', UI.autoEnd ? '1' : '0'); } catch (e) {}
     syncAutoEndBtn();
-    toast(UI.autoEnd ? '自动结束回合已开启' : '自动结束回合已关闭');
+    toast(UI.autoEnd ? '自动结束回合已开启: 走完步即自动结束' : '自动结束回合已关闭');
     if (UI.autoEnd) scheduleAutoEnd();
   };
   $('#btn-savequit').onclick = () => {
@@ -511,27 +511,21 @@ function afterAction() {
 }
 
 /* ---------------- 自动结束回合(可开关) ---------------- */
-function anyReadySkill(b) {
-  return alivePieces(b.board, RED).some(p => !p.dead && p.status.stun === 0 && p.def.act &&
-    p.def.act.some((a, i) => skillReady(b, p, i).ok));
-}
 function cancelAutoEnd() {
   if (UI.autoEndTimer) { clearTimeout(UI.autoEndTimer); UI.autoEndTimer = null; }
 }
-/* 走步与技能都完成后延迟0.5s自动结束回合; 场上无可用技能时走步后即触发 */
+/* 以走步为唯一参照: 走完步延迟0.5s自动结束回合(默认玩家先放技能再走子) */
 function scheduleAutoEnd() {
   cancelAutoEnd();
   if (!UI.autoEnd) return;
   const b = UI.battle;
   if (!b || b.over || b.turn !== RED || UI.thinking || UI.skillPending) return;
   if (!b.movedDone[RED] || b.extraMoves[RED] > 0) return;
-  if (!b.skillUsed[RED] && anyReadySkill(b)) return;
   UI.autoEndTimer = setTimeout(() => {
     UI.autoEndTimer = null;
     const b2 = UI.battle;
     if (!b2 || b2.over || b2.turn !== RED || UI.thinking || UI.skillPending) return;
     if (!b2.movedDone[RED] || b2.extraMoves[RED] > 0) return;
-    if (!b2.skillUsed[RED] && anyReadySkill(b2)) return;
     UI.sel = null; UI.skillPending = null;
     playerEndTurn(b2);
     UI.thinking = true;
@@ -1065,7 +1059,7 @@ function showHelp() {
     <h3>存档与继续</h3>
     <p>进度自动保存(单栏位): 每次进入部署时自动存档;战斗中可点「保存退出」,下次从主菜单「继续征战」接着打(本场战斗从头再战,战斗中已阵亡的棋子计入阵亡)。<b>战败或通关后存档清除</b>。结算弹窗不可点外关闭,请用弹窗内按钮返回。</p>
     <h3>回合流程</h3>
-    <p>每回合<b>至多走一步 + 使用一次主动技能</b>,且<b>同一棋子一回合只能「移动/远程」或「放技能」,不可兼得</b>(吃子触发的「再动」仍算同一步的延续;技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动。右上角「⏭ 自动回合」开关: 开启后,走步与技能都完成会延迟0.5秒自动进入敌方回合;若场上没有可用的技能,走完步即自动结束。</p>
+    <p>每回合<b>至多走一步 + 使用一次主动技能</b>,且<b>同一棋子一回合只能「移动/远程」或「放技能」,不可兼得</b>(吃子触发的「再动」仍算同一步的延续;技能消耗气力,每回合自动+1)。走完后必须点「结束回合」,不可无限行动。右上角「⏭ 自动回合」开关: 开启后<b>走完步即延迟0.5秒自动结束回合</b>——建议先放技能再走子;关闭则手动结束。</p>
     <h3>生命与远程</h3>
     <p>生命超过1的棋子被吃时先扣血,攻击者被弹回原地;远程棋子可原地射击,不移动自身。</p>
     <h3>部署</h3>
